@@ -7,6 +7,7 @@
 """
 
 import pandas as pd
+import os
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
 import pytz
@@ -339,7 +340,7 @@ class StockMonitorAnalysis:
     
     def _get_streak_days(self, symbol: str) -> int:
         """
-        获取连板天数
+        获取连板天数 - 准确计算
         
         Args:
             symbol: 股票代码
@@ -348,31 +349,122 @@ class StockMonitorAnalysis:
             连板天数，如果无法获取则返回0
         """
         try:
-            # 尝试导入 stock_data_fetcher 来获取股票基本信息
-            from stock_data_fetcher import get_stock_info
+            symbol_clean = str(symbol).zfill(6)
             
-            stock_info = get_stock_info(symbol)
-            if not stock_info:
-                return 0
+            # 获取当前查询日期
+            current_date = self.get_query_date()
             
-            # 尝试不同的字段名
-            for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak']:
-                if field in stock_info:
-                    value = stock_info[field]
-                    if isinstance(value, (int, float)):
-                        return int(value)
-                    elif isinstance(value, str):
-                        # 尝试从字符串中提取数字
-                        import re
-                        match = re.search(r'\d+', value)
-                        if match:
-                            return int(match.group())
-                        else:
-                            return 0
-            return 0
+            # 将日期字符串转换为datetime对象以便计算
+            from datetime import datetime, timedelta
+            current_dt = datetime.strptime(current_date, '%Y%m%d')
+            
+            streak_days = 0
+            max_days_to_check = 30  # 最多检查30天，避免无限循环
+            
+            for i in range(max_days_to_check):
+                check_date = current_dt - timedelta(days=i)
+                check_date_str = check_date.strftime('%Y%m%d')
+                
+                # 检查该日期股票是否在涨停板池中
+                is_limit = self._check_if_in_limit_pool_on_date(symbol_clean, check_date_str)
+                
+                if is_limit:
+                    streak_days += 1
+                else:
+                    # 遇到断板，停止计数
+                    break
+            
+            # 如果今天涨停，但昨天没涨停，至少是1连板
+            if streak_days == 0:
+                # 检查今天是否涨停
+                is_today_limit = self._check_if_in_limit_pool_on_date(symbol_clean, current_date)
+                if is_today_limit:
+                    streak_days = 1
+            
+            print(f"连板天数计算: {symbol_clean} 当前{streak_days}连板")
+            return streak_days
+            
         except Exception as e:
             print(f"获取连板天数失败: {e}")
-            return 0
+            # 回退到原来的方法
+            try:
+                from stock_data_fetcher import get_stock_info
+                stock_info = get_stock_info(symbol)
+                if not stock_info:
+                    return 0
+                
+                for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak']:
+                    if field in stock_info:
+                        value = stock_info[field]
+                        if isinstance(value, (int, float)):
+                            return int(value)
+                        elif isinstance(value, str):
+                            import re
+                            match = re.search(r'\d+', value)
+                            if match:
+                                return int(match.group())
+                return 0
+            except:
+                return 0
+    
+    def _check_if_in_limit_pool_on_date(self, symbol: str, date_str: str) -> bool:
+        """
+        检查指定日期股票是否在涨停板池中
+        
+        Args:
+            symbol: 股票代码
+            date_str: 日期字符串 (YYYYMMDD)
+            
+        Returns:
+            是否在涨停板池中
+        """
+        try:
+            # 使用 akshare 的 stock_zt_pool_em 接口获取指定日期的涨停板池数据
+            import akshare as ak
+            
+            # 检查缓存
+            cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stock_data_cache")
+            cache_key = f"limit_pool_{date_str}"
+            cache_file = os.path.join(cache_dir, f"{cache_key}.csv")
+            
+            df = None
+            if os.path.exists(cache_file):
+                try:
+                    df = pd.read_csv(cache_file)
+                except Exception as e:
+                    print(f"读取涨停板池缓存失败: {e}")
+                    df = None
+            
+            # 如果缓存不存在或无效，从接口获取
+            if df is None or df.empty:
+                try:
+                    df = ak.stock_zt_pool_em(date=date_str)
+                    
+                    if df is None or df.empty:
+                        return False
+                    
+                    # 保存到缓存
+                    try:
+                        if not os.path.exists(cache_dir):
+                            os.makedirs(cache_dir)
+                        df.to_csv(cache_file, index=False, encoding='utf-8-sig')
+                    except Exception as e:
+                        print(f"保存涨停板池缓存失败: {e}")
+                        
+                except Exception as e:
+                    print(f"获取涨停板池数据失败: {e}")
+                    return False
+            
+            # 检查股票是否在涨停板池中
+            if '代码' in df.columns:
+                symbol_clean = str(symbol).zfill(6)
+                return symbol_clean in df['代码'].values
+            else:
+                return False
+                
+        except Exception as e:
+            print(f"检查涨停板池失败: {e}")
+            return False
     
     def get_board_changes(self) -> pd.DataFrame:
         """获取板块异动数据"""
