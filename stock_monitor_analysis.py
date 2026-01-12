@@ -78,10 +78,26 @@ class StockMonitorAnalysis:
         综合分析个股：涨停判断 + 异动情况 + 是否炸板 + 是否强势股
         """
         try:
-            symbol_clean = str(symbol).zfill(6)
+            # 首先尝试解析股票代码
+            import re
+            if re.match(r'^\d{6}$', str(symbol)):
+                symbol_clean = str(symbol).zfill(6)
+            else:
+                # 尝试使用股票名称解析器
+                try:
+                    from stock_name_resolver import get_stock_code_by_name
+                    resolved_code = get_stock_code_by_name(str(symbol))
+                    if resolved_code:
+                        symbol_clean = resolved_code
+                        print(f"解析股票名称 '{symbol}' 得到代码: {symbol_clean}")
+                    else:
+                        symbol_clean = str(symbol).zfill(6)
+                except ImportError:
+                    print("无法导入 stock_name_resolver，将直接使用输入")
+                    symbol_clean = str(symbol).zfill(6)
             
             print(f"\n{'='*60}")
-            print(f"开始对 {symbol_clean} 进行综合分析...")
+            print(f"开始对 {symbol} (代码: {symbol_clean}) 进行综合分析...")
             print(f"{'='*60}")
             
             # 1. 分析异动情况（涨停判断、炸板、漏单）
@@ -343,21 +359,44 @@ class StockMonitorAnalysis:
         获取连板天数 - 改进版
         
         Args:
-            symbol: 股票代码
+            symbol: 股票代码或名称
             
         Returns:
             连板天数，如果无法获取则返回0
         """
         try:
-            symbol_clean = str(symbol).zfill(6)
+            # 首先尝试解析股票代码
+            stock_code = None
+            
+            # 如果输入看起来像股票代码（6位数字）
+            import re
+            if re.match(r'^\d{6}$', str(symbol)):
+                stock_code = str(symbol).zfill(6)
+            else:
+                # 尝试使用股票名称解析器
+                try:
+                    from stock_name_resolver import get_stock_code_by_name
+                    stock_code = get_stock_code_by_name(str(symbol))
+                    if stock_code:
+                        print(f"解析股票名称 '{symbol}' 得到代码: {stock_code}")
+                    else:
+                        # 如果解析失败，尝试直接使用输入
+                        stock_code = str(symbol).zfill(6)
+                except ImportError:
+                    print("无法导入 stock_name_resolver，将直接使用输入")
+                    stock_code = str(symbol).zfill(6)
+            
+            if not stock_code:
+                print(f"无法解析股票代码: {symbol}")
+                return 0
             
             # 首先尝试从 stock_data_fetcher 获取准确的连板信息
             try:
                 from stock_data_fetcher import get_stock_info
-                stock_info = get_stock_info(symbol_clean)
+                stock_info = get_stock_info(stock_code)
                 if stock_info:
                     # 尝试从多个可能的字段中提取连板天数
-                    for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak', '连续涨停天数', '涨停天数']:
+                    for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak', '连续涨停天数', '涨停天数', '连板高度']:
                         if field in stock_info:
                             value = stock_info[field]
                             if isinstance(value, (int, float)):
@@ -366,7 +405,6 @@ class StockMonitorAnalysis:
                                     print(f"从 stock_data_fetcher 获取到连板天数: {result}")
                                     return result
                             elif isinstance(value, str):
-                                import re
                                 # 提取数字
                                 match = re.search(r'(\d+)', value)
                                 if match:
@@ -379,7 +417,7 @@ class StockMonitorAnalysis:
             except Exception as e:
                 print(f"从 stock_data_fetcher 获取连板天数失败: {e}")
             
-            # 备用方法：使用 akshare 的涨停板池历史数据
+            # 备用方法：使用 akshare 的涨停板池历史数据，改进版
             try:
                 import akshare as ak
                 import pandas as pd
@@ -390,62 +428,114 @@ class StockMonitorAnalysis:
                 current_dt = datetime.strptime(current_date, '%Y%m%d')
                 
                 streak_days = 0
-                max_days_to_check = 20  # 最多检查20个交易日
+                max_days_to_check = 30  # 最多检查30个交易日
+                consecutive_failures = 0
                 
-                print(f"开始使用备用方法计算连板天数: {symbol_clean}")
+                print(f"开始使用备用方法计算连板天数: {stock_code}")
                 
-                for i in range(max_days_to_check):
-                    check_date = current_dt - timedelta(days=i)
-                    check_date_str = check_date.strftime('%Y%m%d')
-                    
-                    # 尝试获取该日期的涨停板池数据
-                    try:
-                        df = ak.stock_zt_pool_em(date=check_date_str)
+                # 首先检查今天是否涨停
+                today_in_pool = False
+                try:
+                    df_today = ak.stock_zt_pool_em(date=current_date)
+                    if df_today is not None and not df_today.empty and '代码' in df_today.columns:
+                        codes_today = df_today['代码'].astype(str).str.zfill(6).tolist()
+                        if stock_code in codes_today:
+                            today_in_pool = True
+                            streak_days = 1
+                            print(f"  今天 ({current_date}) 涨停，开始向前检查连板")
+                except:
+                    pass
+                
+                # 如果今天涨停，向前检查历史连板
+                if today_in_pool:
+                    for i in range(1, max_days_to_check):
+                        check_date = current_dt - timedelta(days=i)
+                        check_date_str = check_date.strftime('%Y%m%d')
                         
-                        # 检查是否为空（可能是非交易日）
-                        if df is None or df.empty:
-                            # 可能是非交易日，继续检查前一天
-                            continue
-                        
-                        # 检查股票是否在涨停板池中
-                        if '代码' in df.columns:
-                            # 确保代码格式一致
-                            codes_in_pool = df['代码'].astype(str).str.zfill(6).tolist()
-                            if symbol_clean in codes_in_pool:
-                                streak_days += 1
-                                print(f"  发现 {check_date_str} 涨停，当前累计 {streak_days} 连板")
-                            else:
-                                # 如果今天涨停但昨天没涨停，至少是1连板
-                                if i == 0 and streak_days == 0:
-                                    # 检查今天是否涨停（但不在涨停板池中？这不应该发生）
-                                    pass
-                                # 遇到未涨停日，停止计数
-                                if i > 0:  # 不是检查的第一天（今天）
-                                    break
-                        else:
-                            # 没有代码列，可能是数据格式问题
-                            continue
+                        # 尝试获取该日期的涨停板池数据
+                        try:
+                            df = ak.stock_zt_pool_em(date=check_date_str)
                             
-                    except Exception as e:
-                        # 获取数据失败，可能是非交易日或网络问题
-                        # 继续检查下一天
-                        continue
+                            # 检查是否为空（可能是非交易日）
+                            if df is None or df.empty:
+                                # 可能是非交易日，继续检查前一天
+                                consecutive_failures += 1
+                                if consecutive_failures > 5:
+                                    print(f"  连续 {consecutive_failures} 天无法获取数据，停止检查")
+                                    break
+                                continue
+                            
+                            # 重置连续失败计数
+                            consecutive_failures = 0
+                            
+                            # 检查股票是否在涨停板池中
+                            if '代码' in df.columns:
+                                codes_in_pool = df['代码'].astype(str).str.zfill(6).tolist()
+                                if stock_code in codes_in_pool:
+                                    streak_days += 1
+                                    print(f"  发现 {check_date_str} 涨停，当前累计 {streak_days} 连板")
+                                else:
+                                    # 遇到未涨停日，停止计数
+                                    print(f"  {check_date_str} 未涨停，停止向前检查")
+                                    break
+                            else:
+                                # 没有代码列，可能是数据格式问题
+                                print(f"  {check_date_str} 数据格式异常，停止检查")
+                                break
+                                
+                        except Exception as e:
+                            # 获取数据失败，可能是非交易日或网络问题
+                            consecutive_failures += 1
+                            if consecutive_failures > 5:
+                                print(f"  连续 {consecutive_failures} 次获取数据失败，停止检查")
+                                break
+                            continue
                 
-                # 如果今天涨停但昨天没涨停，至少是1连板
+                # 如果今天没涨停，检查昨天是否涨停（可能今天还没收盘）
                 if streak_days == 0:
-                    # 最后检查今天是否涨停
-                    try:
-                        df_today = ak.stock_zt_pool_em(date=current_date)
-                        if df_today is not None and not df_today.empty and '代码' in df_today.columns:
-                            codes_today = df_today['代码'].astype(str).str.zfill(6).tolist()
-                            if symbol_clean in codes_today:
-                                streak_days = 1
-                                print(f"  今天 ({current_date}) 涨停，计为1连板")
-                    except:
-                        pass
+                    print(f"今天未涨停，检查历史连板")
+                    # 从昨天开始向前检查
+                    for i in range(max_days_to_check):
+                        check_date = current_dt - timedelta(days=i)
+                        check_date_str = check_date.strftime('%Y%m%d')
+                        
+                        try:
+                            df = ak.stock_zt_pool_em(date=check_date_str)
+                            
+                            if df is None or df.empty:
+                                continue
+                            
+                            if '代码' in df.columns:
+                                codes_in_pool = df['代码'].astype(str).str.zfill(6).tolist()
+                                if stock_code in codes_in_pool:
+                                    # 找到涨停日，开始向前检查连板
+                                    streak_days = 1
+                                    print(f"  发现 {check_date_str} 涨停，开始向前检查连板")
+                                    
+                                    # 继续向前检查
+                                    for j in range(1, max_days_to_check - i):
+                                        prev_date = check_date - timedelta(days=j)
+                                        prev_date_str = prev_date.strftime('%Y%m%d')
+                                        
+                                        try:
+                                            df_prev = ak.stock_zt_pool_em(date=prev_date_str)
+                                            if df_prev is None or df_prev.empty:
+                                                continue
+                                            if '代码' in df_prev.columns:
+                                                codes_prev = df_prev['代码'].astype(str).str.zfill(6).tolist()
+                                                if stock_code in codes_prev:
+                                                    streak_days += 1
+                                                    print(f"  发现 {prev_date_str} 涨停，当前累计 {streak_days} 连板")
+                                                else:
+                                                    break
+                                        except:
+                                            break
+                                    break
+                        except:
+                            continue
                 
                 if streak_days > 0:
-                    print(f"备用方法计算完成: {symbol_clean} 当前{streak_days}连板")
+                    print(f"备用方法计算完成: {stock_code} 当前{streak_days}连板")
                 else:
                     print(f"备用方法未检测到连板")
                 
