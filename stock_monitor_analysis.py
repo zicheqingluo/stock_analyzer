@@ -340,7 +340,7 @@ class StockMonitorAnalysis:
     
     def _get_streak_days(self, symbol: str) -> int:
         """
-        获取连板天数 - 准确计算
+        获取连板天数 - 改进版
         
         Args:
             symbol: 股票代码
@@ -351,80 +351,115 @@ class StockMonitorAnalysis:
         try:
             symbol_clean = str(symbol).zfill(6)
             
-            # 获取当前查询日期
-            current_date = self.get_query_date()
-            
-            # 将日期字符串转换为datetime对象以便计算
-            from datetime import datetime, timedelta
-            current_dt = datetime.strptime(current_date, '%Y%m%d')
-            
-            streak_days = 0
-            max_days_to_check = 30  # 最多检查30天，避免无限循环
-            consecutive_non_trading_days = 0  # 连续非交易日计数
-            
-            print(f"开始计算连板天数: {symbol_clean}，从 {current_date} 开始往前检查")
-            
-            for i in range(max_days_to_check):
-                check_date = current_dt - timedelta(days=i)
-                check_date_str = check_date.strftime('%Y%m%d')
-                
-                # 检查该日期股票是否在涨停板池中
-                is_limit = self._check_if_in_limit_pool_on_date(symbol_clean, check_date_str)
-                
-                if is_limit is True:
-                    streak_days += 1
-                    consecutive_non_trading_days = 0  # 重置连续非交易日计数
-                    print(f"  第{i+1}天前 ({check_date_str}): 涨停 ✓，当前累计 {streak_days} 连板")
-                elif is_limit is False:
-                    # 明确未涨停（有数据但不在涨停板池中）
-                    print(f"  第{i+1}天前 ({check_date_str}): 明确未涨停 ✗，停止计数")
-                    break
-                else:
-                    # 无法获取数据（可能是非交易日）
-                    consecutive_non_trading_days += 1
-                    print(f"  第{i+1}天前 ({check_date_str}): 无法获取数据，可能为非交易日，跳过")
-                    
-                    # 如果连续遇到太多非交易日，可能到了长假，停止检查
-                    if consecutive_non_trading_days > 5:
-                        print(f"  连续 {consecutive_non_trading_days} 天无法获取数据，停止检查")
-                        break
-                    # 继续检查下一天
-            
-            # 如果今天涨停，但昨天没涨停，至少是1连板
-            if streak_days == 0:
-                # 检查今天是否涨停
-                is_today_limit = self._check_if_in_limit_pool_on_date(symbol_clean, current_date)
-                if is_today_limit:
-                    streak_days = 1
-                    print(f"  今天 ({current_date}): 涨停 ✓，但昨天未涨停，计为1连板")
-            
-            print(f"连板天数计算完成: {symbol_clean} 当前{streak_days}连板")
-            return streak_days
-            
-        except Exception as e:
-            print(f"获取连板天数失败: {e}")
-            import traceback
-            traceback.print_exc()
-            # 回退到原来的方法
+            # 首先尝试从 stock_data_fetcher 获取准确的连板信息
             try:
                 from stock_data_fetcher import get_stock_info
-                stock_info = get_stock_info(symbol)
-                if not stock_info:
-                    return 0
+                stock_info = get_stock_info(symbol_clean)
+                if stock_info:
+                    # 尝试从多个可能的字段中提取连板天数
+                    for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak', '连续涨停天数', '涨停天数']:
+                        if field in stock_info:
+                            value = stock_info[field]
+                            if isinstance(value, (int, float)):
+                                result = int(value)
+                                if result > 0:
+                                    print(f"从 stock_data_fetcher 获取到连板天数: {result}")
+                                    return result
+                            elif isinstance(value, str):
+                                import re
+                                # 提取数字
+                                match = re.search(r'(\d+)', value)
+                                if match:
+                                    result = int(match.group(1))
+                                    if result > 0:
+                                        print(f"从 stock_data_fetcher 字段 {field} 提取到连板天数: {result}")
+                                        return result
+            except ImportError:
+                print("无法导入 stock_data_fetcher，将使用备用方法")
+            except Exception as e:
+                print(f"从 stock_data_fetcher 获取连板天数失败: {e}")
+            
+            # 备用方法：使用 akshare 的涨停板池历史数据
+            try:
+                import akshare as ak
+                import pandas as pd
+                from datetime import datetime, timedelta
                 
-                for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak']:
-                    if field in stock_info:
-                        value = stock_info[field]
-                        if isinstance(value, (int, float)):
-                            return int(value)
-                        elif isinstance(value, str):
-                            import re
-                            match = re.search(r'\d+', value)
-                            if match:
-                                return int(match.group())
+                # 获取当前查询日期
+                current_date = self.get_query_date()
+                current_dt = datetime.strptime(current_date, '%Y%m%d')
+                
+                streak_days = 0
+                max_days_to_check = 20  # 最多检查20个交易日
+                
+                print(f"开始使用备用方法计算连板天数: {symbol_clean}")
+                
+                for i in range(max_days_to_check):
+                    check_date = current_dt - timedelta(days=i)
+                    check_date_str = check_date.strftime('%Y%m%d')
+                    
+                    # 尝试获取该日期的涨停板池数据
+                    try:
+                        df = ak.stock_zt_pool_em(date=check_date_str)
+                        
+                        # 检查是否为空（可能是非交易日）
+                        if df is None or df.empty:
+                            # 可能是非交易日，继续检查前一天
+                            continue
+                        
+                        # 检查股票是否在涨停板池中
+                        if '代码' in df.columns:
+                            # 确保代码格式一致
+                            codes_in_pool = df['代码'].astype(str).str.zfill(6).tolist()
+                            if symbol_clean in codes_in_pool:
+                                streak_days += 1
+                                print(f"  发现 {check_date_str} 涨停，当前累计 {streak_days} 连板")
+                            else:
+                                # 如果今天涨停但昨天没涨停，至少是1连板
+                                if i == 0 and streak_days == 0:
+                                    # 检查今天是否涨停（但不在涨停板池中？这不应该发生）
+                                    pass
+                                # 遇到未涨停日，停止计数
+                                if i > 0:  # 不是检查的第一天（今天）
+                                    break
+                        else:
+                            # 没有代码列，可能是数据格式问题
+                            continue
+                            
+                    except Exception as e:
+                        # 获取数据失败，可能是非交易日或网络问题
+                        # 继续检查下一天
+                        continue
+                
+                # 如果今天涨停但昨天没涨停，至少是1连板
+                if streak_days == 0:
+                    # 最后检查今天是否涨停
+                    try:
+                        df_today = ak.stock_zt_pool_em(date=current_date)
+                        if df_today is not None and not df_today.empty and '代码' in df_today.columns:
+                            codes_today = df_today['代码'].astype(str).str.zfill(6).tolist()
+                            if symbol_clean in codes_today:
+                                streak_days = 1
+                                print(f"  今天 ({current_date}) 涨停，计为1连板")
+                    except:
+                        pass
+                
+                if streak_days > 0:
+                    print(f"备用方法计算完成: {symbol_clean} 当前{streak_days}连板")
+                else:
+                    print(f"备用方法未检测到连板")
+                
+                return streak_days
+                
+            except Exception as e:
+                print(f"备用方法计算连板天数失败: {e}")
+                import traceback
+                traceback.print_exc()
                 return 0
-            except:
-                return 0
+                
+        except Exception as e:
+            print(f"获取连板天数失败: {e}")
+            return 0
     
     def _check_if_in_limit_pool_on_date(self, symbol: str, date_str: str):
         """
