@@ -99,6 +99,9 @@ def _format_炸板_info(炸板_info: Dict[str, Any]) -> List[str]:
             lines.append(f"  详情: {炸板_info['炸板详情']}")
     else:
         lines.append(f"✓ 不在炸板股池中")
+        # 添加说明：盘中炸板次数与收盘后炸板池的区别
+        if 炸板_info.get('炸板次数', 0) > 0:
+            lines.append(f"  注: 盘中炸板{炸板_info.get('炸板次数', 0)}次，但收盘未在炸板股池中，可能已回封")
     
     return lines
 
@@ -132,7 +135,9 @@ def _format_key_metrics(key_metrics: Dict[str, Any]) -> List[str]:
         ("是否有炸板", key_metrics.get('是否有炸板', False)),
         ("是否漏单", key_metrics.get('是否漏单', False)),
         ("是否强势股", key_metrics.get('是否强势股', False)),
-        ("炸板次数", key_metrics.get('炸板次数', 0))
+        ("炸板次数", key_metrics.get('炸板次数', 0)),
+        ("最终是否涨停", key_metrics.get('最终是否涨停', False)),
+        ("几连板", key_metrics.get('几连板', 0))
     ]
     
     for name, value in metrics:

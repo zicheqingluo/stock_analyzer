@@ -352,15 +352,24 @@ class StockMonitorAnalysis:
             from stock_data_fetcher import get_stock_info
             
             stock_info = get_stock_info(symbol)
-            if stock_info and '连板天数' in stock_info:
-                return int(stock_info['连板天数'])
-            elif stock_info and '连板' in stock_info:
-                # 尝试其他可能的字段名
-                return int(stock_info['连板'])
-            else:
-                # 从涨停异动数据中推断
-                # 这里简化处理，返回0
+            if not stock_info:
                 return 0
+            
+            # 尝试不同的字段名
+            for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak']:
+                if field in stock_info:
+                    value = stock_info[field]
+                    if isinstance(value, (int, float)):
+                        return int(value)
+                    elif isinstance(value, str):
+                        # 尝试从字符串中提取数字
+                        import re
+                        match = re.search(r'\d+', value)
+                        if match:
+                            return int(match.group())
+                        else:
+                            return 0
+            return 0
         except Exception as e:
             print(f"获取连板天数失败: {e}")
             return 0
