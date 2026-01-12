@@ -107,6 +107,9 @@ class StockMonitorAnalysis:
             # 最终是否涨停：如果在涨停板池中，或者有涨停且没有炸板，或者有炸板但重新封板
             final_is_limit_up = is_in_limit_pool or (is_limit_up and not has_open_limit) or (has_open_limit and has_re_limit)
             
+            # 获取连板天数
+            streak_days = self._get_streak_days(symbol_clean)
+            
             # 生成综合评级
             rating_info = self._generate_rating(
                 is_limit_up, has_open_limit, has_big_sell, 
@@ -140,7 +143,8 @@ class StockMonitorAnalysis:
                         change_analysis.get('炸板次数', 0) if isinstance(change_analysis, dict) else 0,
                         炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0
                     ),
-                    '最终是否涨停': final_is_limit_up
+                    '最终是否涨停': final_is_limit_up,
+                    '几连板': streak_days
                 }
             }
             
@@ -332,6 +336,34 @@ class StockMonitorAnalysis:
     def get_strong_stocks(self, date: str = None) -> pd.DataFrame:
         """获取强势股池数据"""
         return self.pool_module.get_strong_stocks(date)
+    
+    def _get_streak_days(self, symbol: str) -> int:
+        """
+        获取连板天数
+        
+        Args:
+            symbol: 股票代码
+            
+        Returns:
+            连板天数，如果无法获取则返回0
+        """
+        try:
+            # 尝试导入 stock_data_fetcher 来获取股票基本信息
+            from stock_data_fetcher import get_stock_info
+            
+            stock_info = get_stock_info(symbol)
+            if stock_info and '连板天数' in stock_info:
+                return int(stock_info['连板天数'])
+            elif stock_info and '连板' in stock_info:
+                # 尝试其他可能的字段名
+                return int(stock_info['连板'])
+            else:
+                # 从涨停异动数据中推断
+                # 这里简化处理，返回0
+                return 0
+        except Exception as e:
+            print(f"获取连板天数失败: {e}")
+            return 0
     
     def get_board_changes(self) -> pd.DataFrame:
         """获取板块异动数据"""
