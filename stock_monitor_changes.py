@@ -134,15 +134,24 @@ class StockMonitorChanges:
                         # 比较时间
                         last_limit_dt = self._parse_time_to_datetime(last_limit_time, self.get_query_date())
                         last_open_dt = self._parse_time_to_datetime(last_open_time, self.get_query_date())
-                        
-                        if last_limit_dt and last_open_dt and last_limit_dt > last_open_dt:
-                            # 重新封板了，以最后一次封板时间为基准
-                            base_limit_time = last_limit_time
-                            has_re_limit = True
-                            print(f"股票{symbol_clean}有炸板后重新封板，基准时间: {base_limit_time}")
+                    
+                        print(f"调试信息: 最后涨停时间 {last_limit_time} -> {last_limit_dt}")
+                        print(f"调试信息: 最后炸板时间 {last_open_time} -> {last_open_dt}")
+                        print(f"调试信息: 查询日期 {self.get_query_date()}")
+                    
+                        if last_limit_dt and last_open_dt:
+                            if last_limit_dt > last_open_dt:
+                                # 重新封板了，以最后一次封板时间为基准
+                                base_limit_time = last_limit_time
+                                has_re_limit = True
+                                print(f"股票{symbol_clean}有炸板后重新封板，基准时间: {base_limit_time}")
+                            else:
+                                # 炸板后没有重新封板
+                                print(f"股票{symbol_clean}有炸板但没有重新封板，不检查漏单")
+                                print(f"原因: 最后涨停时间 {last_limit_dt} 不在最后炸板时间 {last_open_dt} 之后")
                         else:
-                            # 炸板后没有重新封板
-                            print(f"股票{symbol_clean}有炸板但没有重新封板，不检查漏单")
+                            print(f"股票{symbol_clean}时间解析失败，无法确定是否重新封板")
+                            print(f"last_limit_dt: {last_limit_dt}, last_open_dt: {last_open_dt}")
                     else:
                         # 没有炸板时间，应该不会到这里
                         base_limit_time = limit_up_times[0]
@@ -331,17 +340,34 @@ class StockMonitorChanges:
             return None
         
         try:
+            # 清理时间字符串中的空格
+            time_str_clean = time_str.strip()
+            
             # 解析日期
             date_part = datetime.strptime(date_str, '%Y%m%d')
             
             # 解析时间
-            if len(time_str) == 5:  # HH:MM 格式
-                time_part = datetime.strptime(time_str, '%H:%M')
-            elif len(time_str) == 8:  # HH:MM:SS 格式
-                time_part = datetime.strptime(time_str, '%H:%M:%S')
+            # 处理可能的时间格式
+            if ':' in time_str_clean:
+                parts = time_str_clean.split(':')
+                if len(parts) == 3:  # HH:MM:SS
+                    time_part = datetime.strptime(time_str_clean, '%H:%M:%S')
+                elif len(parts) == 2:  # HH:MM
+                    time_part = datetime.strptime(time_str_clean, '%H:%M')
+                else:
+                    # 尝试默认格式
+                    time_part = datetime.strptime(time_str_clean, '%H:%M:%S')
             else:
-                # 尝试其他格式
-                time_part = datetime.strptime(time_str, '%H:%M')
+                # 如果没有冒号，尝试其他格式
+                if len(time_str_clean) == 6:  # HHMMSS
+                    time_str_clean = f"{time_str_clean[:2]}:{time_str_clean[2:4]}:{time_str_clean[4:6]}"
+                    time_part = datetime.strptime(time_str_clean, '%H:%M:%S')
+                elif len(time_str_clean) == 4:  # HHMM
+                    time_str_clean = f"{time_str_clean[:2]}:{time_str_clean[2:4]}"
+                    time_part = datetime.strptime(time_str_clean, '%H:%M')
+                else:
+                    print(f"无法解析时间格式: {time_str}")
+                    return None
             
             # 合并日期和时间
             return datetime.combine(date_part.date(), time_part.time())
