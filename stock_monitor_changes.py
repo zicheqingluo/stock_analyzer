@@ -247,7 +247,8 @@ class StockMonitorChanges:
             '大笔卖出时间': big_sell_times,  # 已经是字符串列表
             '大笔卖出详情': big_sell_details,
             '其他异动': other_changes,
-            '异动分析总结': self._generate_change_summary(is_limit_up, has_open_limit, has_big_sell, has_re_limit)
+            '异动分析总结': self._generate_change_summary(is_limit_up, has_open_limit, has_big_sell, has_re_limit),
+            '是否在涨停板池中': is_in_limit_pool
         }
         
         print(f"异动分析完成: {result['异动分析总结']}")

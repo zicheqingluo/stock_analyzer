@@ -100,8 +100,12 @@ class StockMonitorAnalysis:
             has_open_limit = change_analysis.get('是否有炸板', False) if isinstance(change_analysis, dict) else False
             has_big_sell = change_analysis.get('是否大笔卖出', False) if isinstance(change_analysis, dict) else False
             has_re_limit = change_analysis.get('是否重新封板', False) if isinstance(change_analysis, dict) else False
+            is_in_limit_pool = change_analysis.get('是否在涨停板池中', False) if isinstance(change_analysis, dict) else False
             is_in_炸板_pool = 炸板_check.get('是否在炸板股池', False) if isinstance(炸板_check, dict) else False
             is_in_strong_pool = strong_check.get('是否在强势股池', False) if isinstance(strong_check, dict) else False
+            
+            # 最终是否涨停：如果在涨停板池中，或者有涨停且没有炸板，或者有炸板但重新封板
+            final_is_limit_up = is_in_limit_pool or (is_limit_up and not has_open_limit) or (has_open_limit and has_re_limit)
             
             # 生成综合评级
             rating_info = self._generate_rating(
@@ -135,7 +139,8 @@ class StockMonitorAnalysis:
                     '炸板次数': max(
                         change_analysis.get('炸板次数', 0) if isinstance(change_analysis, dict) else 0,
                         炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0
-                    )
+                    ),
+                    '最终是否涨停': final_is_limit_up
                 }
             }
             
