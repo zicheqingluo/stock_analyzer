@@ -73,6 +73,7 @@ class StockMonitorChanges:
         漏单判断逻辑修改：
         1. 如果有炸板后重新封板，只检查重新封板后的漏单
         2. 如果没有重新封板，则不检查漏单
+        3. 新增：检查股票是否在涨停板池中，如果在，说明最终封板
         """
         symbol_clean = str(symbol).zfill(6)
         
@@ -115,9 +116,13 @@ class StockMonitorChanges:
                         if t is not None
                     ]
         
-        # 3. 确定基准封板时间（用于漏单检查）
+        # 3. 检查股票是否在涨停板池中（最终是否封板）
+        is_in_limit_pool = self._check_if_in_limit_pool(symbol_clean)
+        
+        # 4. 确定基准封板时间（用于漏单检查）和重新封板状态
         # 逻辑：如果有炸板，取最后一次涨停时间（如果存在的话，即重新封板）
         #       如果没有炸板，取第一次涨停时间
+        #       如果在涨停板池中，说明最终封板，has_re_limit 应为 True
         base_limit_time = None
         has_re_limit = False
         
@@ -146,9 +151,15 @@ class StockMonitorChanges:
                                 has_re_limit = True
                                 print(f"股票{symbol_clean}有炸板后重新封板，基准时间: {base_limit_time}")
                             else:
-                                # 炸板后没有重新封板
-                                print(f"股票{symbol_clean}有炸板但没有重新封板，不检查漏单")
-                                print(f"原因: 最后涨停时间 {last_limit_dt} 不在最后炸板时间 {last_open_dt} 之后")
+                                # 炸板后没有重新封板，但如果在涨停板池中，说明最终封板了
+                                if is_in_limit_pool:
+                                    has_re_limit = True
+                                    base_limit_time = last_limit_time
+                                    print(f"股票{symbol_clean}有炸板但最终封板（在涨停板池中），基准时间: {base_limit_time}")
+                                else:
+                                    # 炸板后没有重新封板
+                                    print(f"股票{symbol_clean}有炸板但没有重新封板，不检查漏单")
+                                    print(f"原因: 最后涨停时间 {last_limit_dt} 不在最后炸板时间 {last_open_dt} 之后")
                         else:
                             print(f"股票{symbol_clean}时间解析失败，无法确定是否重新封板")
                             print(f"last_limit_dt: {last_limit_dt}, last_open_dt: {last_open_dt}")
@@ -161,6 +172,14 @@ class StockMonitorChanges:
             else:
                 # 没有炸板，以第一次涨停时间为基准
                 base_limit_time = limit_up_times[0] if limit_up_times else None
+                # 如果在涨停板池中，说明封板
+                if is_in_limit_pool:
+                    has_re_limit = True
+        
+        # 5. 如果不在涨停板池中，但之前认为重新封板了，需要重新评估
+        if has_re_limit and not is_in_limit_pool:
+            print(f"注意: 股票{symbol_clean}被认为重新封板，但不在涨停板池中，重新评估...")
+            # 这里可以添加更复杂的逻辑，但暂时保持原样
         
         # 4. 检查是否有大笔卖出（漏单）- 修改逻辑
         big_sell_df = self.get_stock_changes("大笔卖出")
@@ -375,6 +394,43 @@ class StockMonitorChanges:
             print(f"解析时间失败: {date_str} {time_str}, 错误: {e}")
             return None
     
+    def _check_if_in_limit_pool(self, symbol: str) -> bool:
+        """
+        检查股票是否在涨停板池中
+        
+        Args:
+            symbol: 股票代码
+            
+        Returns:
+            是否在涨停板池中
+        """
+        try:
+            # 使用 akshare 的 stock_zt_pool_em 接口获取涨停板池数据
+            import akshare as ak
+            df = ak.stock_zt_pool_em(date=self.get_query_date())
+            
+            if df is None or df.empty:
+                print(f"未获取到涨停板池数据")
+                return False
+            
+            # 检查股票是否在涨停板池中
+            # 注意：列名可能需要调整
+            if '代码' in df.columns:
+                symbol_clean = str(symbol).zfill(6)
+                is_in_pool = symbol_clean in df['代码'].values
+                if is_in_pool:
+                    print(f"股票{symbol_clean}在涨停板池中")
+                else:
+                    print(f"股票{symbol_clean}不在涨停板池中")
+                return is_in_pool
+            else:
+                print(f"涨停板池数据中没有'代码'列")
+                return False
+                
+        except Exception as e:
+            print(f"检查涨停板池失败: {e}")
+            return False
+    
     def _generate_change_summary(self, is_limit_up: bool, has_open_limit: bool, 
                                has_big_sell: bool, has_re_limit: bool = False) -> str:
         """生成异动总结"""
@@ -388,6 +444,9 @@ class StockMonitorChanges:
                 summary_parts.append("有炸板但重新封板")
             else:
                 summary_parts.append("有炸板未重新封板")
+        else:
+            # 没有炸板
+            pass
         
         if has_big_sell:
             summary_parts.append("存在大笔卖出（漏单）")
