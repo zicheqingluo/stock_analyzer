@@ -65,6 +65,13 @@ class StockMonitorAnalysis:
         print(f"监控模块查询日期: {query_date}")
         return query_date
     
+    def comprehensive_analysis(self, symbol: str) -> Dict[str, Any]:
+        """
+        综合分析个股的别名方法，用于兼容现有代码
+        调用 comprehensive_stock_analysis 方法
+        """
+        return self.comprehensive_stock_analysis(symbol)
+    
     def comprehensive_stock_analysis(self, symbol: str) -> Dict[str, Any]:
         """
         综合分析个股：涨停判断 + 异动情况 + 是否炸板 + 是否强势股
