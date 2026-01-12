@@ -43,9 +43,28 @@ def main():
     data_fetcher_path = os.path.join(current_dir, "stock_data_fetcher.py")
     stock_data_fetcher = import_module("stock_data_fetcher", data_fetcher_path)
     
-    # ==================== 动态导入监控模块 ====================
-    monitor_path = os.path.join(current_dir, "stock_monitor.py")
-    stock_monitor = import_module("stock_monitor", monitor_path)
+    # ==================== 动态导入监控分析模块 ====================
+    # 注意：stock_monitor.py 可能导出了函数，但我们需要分析类的实例
+    # 首先尝试导入 stock_monitor_analysis.py 来获取 StockMonitorAnalysis 类
+    monitor_analysis_path = os.path.join(current_dir, "stock_monitor_analysis.py")
+    monitor_analysis_module = import_module("stock_monitor_analysis", monitor_analysis_path)
+    
+    # 创建分析实例
+    stock_monitor = None
+    if monitor_analysis_module:
+        try:
+            # 创建 StockMonitorAnalysis 实例
+            stock_monitor = monitor_analysis_module.StockMonitorAnalysis()
+            print("股票监控分析模块初始化成功！")
+        except Exception as e:
+            print(f"创建监控分析实例失败: {e}")
+            # 尝试导入 stock_monitor.py 作为备选
+            monitor_path = os.path.join(current_dir, "stock_monitor.py")
+            stock_monitor = import_module("stock_monitor", monitor_path)
+    else:
+        # 如果无法导入分析模块，尝试导入 stock_monitor.py
+        monitor_path = os.path.join(current_dir, "stock_monitor.py")
+        stock_monitor = import_module("stock_monitor", monitor_path)
     
     # ==================== 导入股票名称解析模块 ====================
     resolver_path = os.path.join(current_dir, "stock_name_resolver.py")
@@ -55,11 +74,14 @@ def main():
     ui_path = os.path.join(current_dir, "stock_analysis_ui.py")
     ui_module = import_module("stock_analysis_ui", ui_path)
     
-    if ui_module:
+    if ui_module and stock_monitor and stock_data_fetcher:
         # 运行用户界面
         ui_module.main_ui(stock_monitor, stock_data_fetcher)
     else:
         print("用户界面模块导入失败，无法启动系统")
+        print(f"UI模块: {'已导入' if ui_module else '未导入'}")
+        print(f"监控模块: {'已导入' if stock_monitor else '未导入'}")
+        print(f"数据获取模块: {'已导入' if stock_data_fetcher else '未导入'}")
 
 
 if __name__ == "__main__":

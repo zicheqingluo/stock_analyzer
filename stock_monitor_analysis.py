@@ -20,12 +20,33 @@ class StockMonitorAnalysis:
         self.current_time = datetime.now(self.tz_shanghai)
         self.data_update_hour = 16
         
-        # 导入其他模块的类
-        from stock_monitor_changes import StockMonitorChanges
-        from stock_monitor_pool import StockMonitorPool
-        
-        self.changes_module = StockMonitorChanges()
-        self.pool_module = StockMonitorPool()
+        # 导入其他模块的类，添加错误处理
+        try:
+            from stock_monitor_changes import StockMonitorChanges
+            from stock_monitor_pool import StockMonitorPool
+            
+            self.changes_module = StockMonitorChanges()
+            self.pool_module = StockMonitorPool()
+        except ImportError as e:
+            print(f"导入监控模块失败: {e}")
+            print("尝试从当前目录导入...")
+            # 尝试相对导入
+            try:
+                from .stock_monitor_changes import StockMonitorChanges
+                from .stock_monitor_pool import StockMonitorPool
+                self.changes_module = StockMonitorChanges()
+                self.pool_module = StockMonitorPool()
+            except ImportError:
+                print("无法导入必要的监控模块，某些功能可能不可用")
+                # 创建空对象以避免后续错误
+                class DummyModule:
+                    def __getattr__(self, name):
+                        def dummy_method(*args, **kwargs):
+                            print(f"警告: {name} 方法不可用，因为模块导入失败")
+                            return {}
+                        return dummy_method
+                self.changes_module = DummyModule()
+                self.pool_module = DummyModule()
     
     def get_query_date(self) -> str:
         """
@@ -48,73 +69,96 @@ class StockMonitorAnalysis:
         """
         综合分析个股：涨停判断 + 异动情况 + 是否炸板 + 是否强势股
         """
-        symbol_clean = str(symbol).zfill(6)
-        
-        print(f"\n{'='*60}")
-        print(f"开始对 {symbol_clean} 进行综合分析...")
-        print(f"{'='*60}")
-        
-        # 1. 分析异动情况（涨停判断、炸板、漏单）
-        print(f"1. 分析异动情况...")
-        change_analysis = self.changes_module.analyze_limit_up_changes(symbol_clean)
-        
-        # 2. 检查是否炸板
-        print(f"2. 检查是否炸板...")
-        炸板_check = self.pool_module.check_if_炸板(symbol_clean)
-        
-        # 3. 检查是否强势股
-        print(f"3. 检查是否强势股...")
-        strong_check = self.pool_module.check_if_strong_stock(symbol_clean)
-        
-        # 4. 综合评估
-        is_limit_up = change_analysis.get('是否涨停', False)
-        has_open_limit = change_analysis.get('是否有炸板', False)
-        has_big_sell = change_analysis.get('是否大笔卖出', False)
-        has_re_limit = change_analysis.get('是否重新封板', False)
-        is_in_炸板_pool = 炸板_check.get('是否在炸板股池', False)
-        is_in_strong_pool = strong_check.get('是否在强势股池', False)
-        
-        # 生成综合评级
-        rating_info = self._generate_rating(
-            is_limit_up, has_open_limit, has_big_sell, 
-            is_in_炸板_pool, is_in_strong_pool, has_re_limit
-        )
-        
-        # 生成投资建议
-        advice = self._generate_investment_advice(
-            is_limit_up, has_open_limit, has_big_sell, 
-            is_in_炸板_pool, is_in_strong_pool, has_re_limit
-        )
-        
-        # 合并结果
-        comprehensive_result = {
-            '股票代码': symbol_clean,
-            '分析时间': self.current_time.strftime('%Y-%m-%d %H:%M:%S'),
-            '查询日期': self.get_query_date(),
-            '综合评级': rating_info['rating'],
-            '评级说明': rating_info['description'],
-            '投资建议': advice,
-            '涨停异动分析': change_analysis,
-            '炸板检测': 炸板_check,
-            '强势股判断': strong_check,
-            '关键指标': {
-                '是否涨停': is_limit_up,
-                '是否有炸板': has_open_limit or is_in_炸板_pool,
-                '是否漏单': has_big_sell,
-                '是否重新封板': has_re_limit,
-                '是否强势股': is_in_strong_pool,
-                '炸板次数': max(
-                    change_analysis.get('炸板次数', 0),
-                    炸板_check.get('炸板次数', 0)
-                )
+        try:
+            symbol_clean = str(symbol).zfill(6)
+            
+            print(f"\n{'='*60}")
+            print(f"开始对 {symbol_clean} 进行综合分析...")
+            print(f"{'='*60}")
+            
+            # 1. 分析异动情况（涨停判断、炸板、漏单）
+            print(f"1. 分析异动情况...")
+            change_analysis = self.changes_module.analyze_limit_up_changes(symbol_clean)
+            
+            # 2. 检查是否炸板
+            print(f"2. 检查是否炸板...")
+            炸板_check = self.pool_module.check_if_炸板(symbol_clean)
+            
+            # 3. 检查是否强势股
+            print(f"3. 检查是否强势股...")
+            strong_check = self.pool_module.check_if_strong_stock(symbol_clean)
+            
+            # 4. 综合评估
+            is_limit_up = change_analysis.get('是否涨停', False) if isinstance(change_analysis, dict) else False
+            has_open_limit = change_analysis.get('是否有炸板', False) if isinstance(change_analysis, dict) else False
+            has_big_sell = change_analysis.get('是否大笔卖出', False) if isinstance(change_analysis, dict) else False
+            has_re_limit = change_analysis.get('是否重新封板', False) if isinstance(change_analysis, dict) else False
+            is_in_炸板_pool = 炸板_check.get('是否在炸板股池', False) if isinstance(炸板_check, dict) else False
+            is_in_strong_pool = strong_check.get('是否在强势股池', False) if isinstance(strong_check, dict) else False
+            
+            # 生成综合评级
+            rating_info = self._generate_rating(
+                is_limit_up, has_open_limit, has_big_sell, 
+                is_in_炸板_pool, is_in_strong_pool, has_re_limit
+            )
+            
+            # 生成投资建议
+            advice = self._generate_investment_advice(
+                is_limit_up, has_open_limit, has_big_sell, 
+                is_in_炸板_pool, is_in_strong_pool, has_re_limit
+            )
+            
+            # 合并结果
+            comprehensive_result = {
+                '股票代码': symbol_clean,
+                '分析时间': self.current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                '查询日期': self.get_query_date(),
+                '综合评级': rating_info['rating'],
+                '评级说明': rating_info['description'],
+                '投资建议': advice,
+                '涨停异动分析': change_analysis,
+                '炸板检测': 炸板_check,
+                '强势股判断': strong_check,
+                '关键指标': {
+                    '是否涨停': is_limit_up,
+                    '是否有炸板': has_open_limit or is_in_炸板_pool,
+                    '是否漏单': has_big_sell,
+                    '是否重新封板': has_re_limit,
+                    '是否强势股': is_in_strong_pool,
+                    '炸板次数': max(
+                        change_analysis.get('炸板次数', 0) if isinstance(change_analysis, dict) else 0,
+                        炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0
+                    )
+                }
             }
-        }
-        
-        print(f"\n综合分析完成!")
-        print(f"综合评级: {comprehensive_result['综合评级']}")
-        print(f"投资建议: {comprehensive_result['投资建议']}")
-        
-        return comprehensive_result
+            
+            print(f"\n综合分析完成!")
+            print(f"综合评级: {comprehensive_result['综合评级']}")
+            print(f"投资建议: {comprehensive_result['投资建议']}")
+            
+            return comprehensive_result
+        except Exception as e:
+            print(f"综合分析过程中发生错误: {e}")
+            # 返回一个基本的错误结果
+            return {
+                '股票代码': str(symbol).zfill(6),
+                '分析时间': self.current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                '查询日期': self.get_query_date(),
+                '综合评级': 'E',
+                '评级说明': f'分析过程中发生错误: {str(e)}',
+                '投资建议': '分析失败，请检查输入或网络连接',
+                '涨停异动分析': {},
+                '炸板检测': {},
+                '强势股判断': {},
+                '关键指标': {
+                    '是否涨停': False,
+                    '是否有炸板': False,
+                    '是否漏单': False,
+                    '是否重新封板': False,
+                    '是否强势股': False,
+                    '炸板次数': 0
+                }
+            }
     
     def _generate_rating(self, is_limit_up: bool, has_open_limit: bool, 
                         has_big_sell: bool, is_in_炸板_pool: bool, 
