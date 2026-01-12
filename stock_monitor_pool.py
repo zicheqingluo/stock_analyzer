@@ -12,6 +12,8 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 import pytz
 
+import os
+
 class StockMonitorPool:
     """股票池数据查询类（修复版）"""
     
@@ -20,6 +22,12 @@ class StockMonitorPool:
         self.tz_shanghai = pytz.timezone('Asia/Shanghai')
         self.current_time = datetime.now(self.tz_shanghai)
         self.data_update_hour = 16
+        
+        # 创建缓存目录
+        self.cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stock_data_cache")
+        if not os.path.exists(self.cache_dir):
+            os.makedirs(self.cache_dir)
+            print(f"创建缓存目录: {self.cache_dir}")
         
     def get_query_date(self) -> str:
         """
@@ -41,10 +49,27 @@ class StockMonitorPool:
     def get_炸板_stocks(self, date: str = None) -> pd.DataFrame:
         """
         获取炸板股池数据（修复返回None的问题）
+        添加缓存功能
         """
         if date is None:
             date = self.get_query_date()
         
+        # 生成缓存键
+        cache_key = f"炸板股池_{date}"
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.csv")
+        
+        # 检查缓存是否存在
+        if os.path.exists(cache_file):
+            try:
+                print(f"从缓存加载炸板股池数据，日期: {date}")
+                df = pd.read_csv(cache_file)
+                if not df.empty:
+                    print(f"从缓存获取到炸板股池数据 {len(df)} 条，日期: {date}")
+                    return df
+            except Exception as e:
+                print(f"读取炸板股池缓存失败: {e}")
+        
+        # 缓存不存在或无效，从接口获取
         try:
             df = ak.stock_zt_pool_zbgc_em(date=date)
             
@@ -58,6 +83,13 @@ class StockMonitorPool:
             
             if '代码' in df.columns:
                 df['代码'] = df['代码'].astype(str).str.zfill(6)
+            
+            # 保存到缓存
+            try:
+                df.to_csv(cache_file, index=False, encoding='utf-8-sig')
+                print(f"已缓存炸板股池数据到 {cache_file}")
+            except Exception as e:
+                print(f"保存炸板股池缓存失败: {e}")
             
             print(f"获取到炸板股池数据 {len(df)} 条，日期: {date}")
             return df
@@ -158,10 +190,27 @@ class StockMonitorPool:
     def get_strong_stocks(self, date: str = None) -> pd.DataFrame:
         """
         获取强势股池数据（修复返回None的问题）
+        添加缓存功能
         """
         if date is None:
             date = self.get_query_date()
         
+        # 生成缓存键
+        cache_key = f"强势股池_{date}"
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.csv")
+        
+        # 检查缓存是否存在
+        if os.path.exists(cache_file):
+            try:
+                print(f"从缓存加载强势股池数据，日期: {date}")
+                df = pd.read_csv(cache_file)
+                if not df.empty:
+                    print(f"从缓存获取到强势股池数据 {len(df)} 条，日期: {date}")
+                    return df
+            except Exception as e:
+                print(f"读取强势股池缓存失败: {e}")
+        
+        # 缓存不存在或无效，从接口获取
         try:
             df = ak.stock_zt_pool_strong_em(date=date)
             
@@ -175,6 +224,13 @@ class StockMonitorPool:
             
             if '代码' in df.columns:
                 df['代码'] = df['代码'].astype(str).str.zfill(6)
+            
+            # 保存到缓存
+            try:
+                df.to_csv(cache_file, index=False, encoding='utf-8-sig')
+                print(f"已缓存强势股池数据到 {cache_file}")
+            except Exception as e:
+                print(f"保存强势股池缓存失败: {e}")
             
             print(f"获取到强势股池数据 {len(df)} 条，日期: {date}")
             return df
@@ -237,7 +293,25 @@ class StockMonitorPool:
     def get_board_changes(self) -> pd.DataFrame:
         """
         获取板块异动数据（修复返回None的问题）
+        添加缓存功能，按小时缓存
         """
+        # 生成缓存键，按小时缓存
+        current_hour = self.current_time.strftime('%Y%m%d_%H')
+        cache_key = f"板块异动_{current_hour}"
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.csv")
+        
+        # 检查缓存是否存在
+        if os.path.exists(cache_file):
+            try:
+                print(f"从缓存加载板块异动数据")
+                df = pd.read_csv(cache_file)
+                if not df.empty:
+                    print(f"从缓存获取到板块异动数据 {len(df)} 条")
+                    return df
+            except Exception as e:
+                print(f"读取板块异动缓存失败: {e}")
+        
+        # 缓存不存在或无效，从接口获取
         try:
             df = ak.stock_board_change_em()
             
@@ -248,6 +322,13 @@ class StockMonitorPool:
             if df.empty:
                 print("未获取到板块异动数据")
                 return pd.DataFrame()
+            
+            # 保存到缓存
+            try:
+                df.to_csv(cache_file, index=False, encoding='utf-8-sig')
+                print(f"已缓存板块异动数据到 {cache_file}")
+            except Exception as e:
+                print(f"保存板块异动缓存失败: {e}")
             
             print(f"获取到板块异动数据 {len(df)} 条")
             return df
