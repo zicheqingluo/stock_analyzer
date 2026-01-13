@@ -215,11 +215,17 @@ def main():
         
         # 询问是否进行其他分析
         if len(sys.argv) <= 3:  # 如果没有指定不询问
-            choice = input("\n是否进行其他分析？(y/n): ").strip().lower()
-            if choice == 'y':
-                print("进入交互模式...")
-                # 继续执行下面的交互模式代码
-            else:
+            try:
+                choice = input("\n是否进行其他分析？(y/n): ").strip().lower()
+                # 清理输入中的特殊字符
+                choice = ''.join(c for c in choice if c.isalnum() or c in ['y', 'n', 'Y', 'N'])
+                if choice == 'y':
+                    print("进入交互模式...")
+                    # 继续执行下面的交互模式代码
+                else:
+                    return
+            except (EOFError, KeyboardInterrupt):
+                print("\n输入中断，程序退出")
                 return
     
     # 如果没有命令行参数或用户选择继续，进入交互模式

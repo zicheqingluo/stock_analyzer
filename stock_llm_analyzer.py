@@ -174,47 +174,32 @@ class StockLLMAnalyzer:
     def _get_detailed_history(self, symbol: str, days_back: int) -> List[Dict[str, Any]]:
         """
         获取详细的日线历史数据 - 修复版
-        确保获取最近的实际交易日数据
+        确保获取最近的实际交易日数据，并处理日期格式
         """
         try:
-            # 获取当前日期
-            current_date = datetime.now()
+            # 获取当前日期，但使用股票数据获取模块的查询日期
+            # 首先尝试从stock_data_fetcher获取正确的查询日期
+            try:
+                from stock_data_fetcher import get_query_date
+                query_date_str = get_query_date()
+                # 将查询日期转换为datetime对象
+                query_date = datetime.strptime(query_date_str, '%Y%m%d')
+                print(f"使用股票数据获取模块的查询日期: {query_date_str}")
+            except:
+                # 如果失败，使用当前日期
+                query_date = datetime.now()
+                print(f"使用当前日期: {query_date.strftime('%Y%m%d')}")
             
-            # 获取最近的实际交易日
-            # 首先尝试获取涨停板池数据来确定最近有数据的交易日
-            actual_trading_dates = []
-            
-            # 尝试获取最近5天的数据，找到有数据的交易日
-            for i in range(10):  # 最多检查10天
-                check_date = current_date - timedelta(days=i)
-                date_str = check_date.strftime('%Y%m%d')
-                
-                try:
-                    # 尝试获取涨停板池数据
-                    df_test = ak.stock_zt_pool_em(date=date_str)
-                    if df_test is not None and not df_test.empty:
-                        actual_trading_dates.append(date_str)
-                        if len(actual_trading_dates) >= days_back:
-                            break
-                except:
-                    continue
-            
-            if not actual_trading_dates:
-                # 如果没有找到涨停板池数据，使用最近days_back天
-                end_date = current_date.strftime('%Y%m%d')
-                start_date = (current_date - timedelta(days=days_back*2)).strftime('%Y%m%d')
-            else:
-                # 使用找到的实际交易日
-                end_date = actual_trading_dates[0]  # 最近的交易日
-                # 计算开始日期：需要days_back个交易日，但这里简单处理
-                start_date = (current_date - timedelta(days=days_back*3)).strftime('%Y%m%d')
+            # 计算开始日期（days_back个交易日之前）
+            # 由于交易日可能不连续，我们多取一些天数
+            start_date = query_date - timedelta(days=days_back * 2)
             
             # 获取日线数据
             df = ak.stock_zh_a_hist(
                 symbol=symbol, 
                 period="daily", 
-                start_date=start_date, 
-                end_date=end_date,
+                start_date=start_date.strftime('%Y%m%d'), 
+                end_date=query_date.strftime('%Y%m%d'),
                 adjust="qfq"
             )
             
@@ -249,7 +234,26 @@ class StockLLMAnalyzer:
             df = df.head(days_back)
             
             # 检查日期是否合理
-            print(f"获取到的历史数据日期范围: {df['date'].iloc[0] if len(df) > 0 else '无数据'} 到 {df['date'].iloc[-1] if len(df) > 0 else '无数据'}")
+            if len(df) > 0:
+                # 确保日期不是未来日期
+                current_date = datetime.now()
+                for date_str in df['date']:
+                    try:
+                        # 尝试解析日期字符串
+                        if isinstance(date_str, str):
+                            # 处理不同的日期格式
+                            if '-' in date_str:
+                                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                            else:
+                                date_obj = datetime.strptime(date_str, '%Y%m%d')
+                            
+                            # 如果日期在未来，可能是数据源问题
+                            if date_obj > current_date:
+                                print(f"警告: 发现未来日期 {date_str}，可能是数据源问题")
+                    except:
+                        pass
+                
+                print(f"获取到的历史数据日期范围: {df['date'].iloc[0] if len(df) > 0 else '无数据'} 到 {df['date'].iloc[-1] if len(df) > 0 else '无数据'}")
             
             # 转换为字典列表
             history_list = []
