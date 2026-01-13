@@ -244,11 +244,12 @@ def get_menu_choice() -> str:
     while True:
         print(f"\n请选择操作:")
         print(f"1. 个股综合分析 (推荐)")
-        print(f"2. 退出")
+        print(f"2. 模式分析 (量化分析股票走势模式)")
+        print(f"3. 退出")
         
         choice = input("\n请输入选项: ").strip()
         
-        if choice in ["1", "2"]:
+        if choice in ["1", "2", "3"]:
             return choice
         else:
             print("无效选项，请重新输入")
@@ -320,13 +321,73 @@ def show_original_function(stock_data_fetcher):
 def show_menu():
     """显示菜单"""
     print("股票连板分析系统 - 专业版")
-    print("版本: 5.0 (集成异动监控与综合分析)")
+    print("版本: 6.0 (集成异动监控与模式分析)")
     print("=" * 60)
     print("核心功能:")
     print("  1. 个股综合分析 (涨停判断+异动监控+炸板检测+强势股判断)")
-    print("  2. 退出")
+    print("  2. 模式分析 (量化分析股票走势模式)")
+    print("  3. 退出")
     print("=" * 60)
 
+
+def run_pattern_analysis():
+    """
+    运行模式分析
+    """
+    print(f"\n{'='*60}")
+    print(f"模式分析")
+    print(f"{'='*60}")
+    
+    # 获取股票名称并转换为代码
+    code = get_stock_name_input()
+    if not code:
+        print("操作已取消")
+        return
+    
+    try:
+        # 尝试导入模式分析模块
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        pattern_path = os.path.join(current_dir, "stock_pattern_analyzer.py")
+        
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("stock_pattern_analyzer", pattern_path)
+        pattern_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pattern_module)
+        
+        # 执行分析
+        analysis = pattern_module.analyze_stock_pattern(code)
+        
+        if "error" in analysis:
+            print(f"模式分析失败: {analysis['error']}")
+            return
+        
+        # 显示结果
+        print(f"\n【模式分析结果】")
+        print(f"股票代码: {analysis['symbol']}")
+        print(f"分析日期: {analysis['analysis_date']}")
+        print(f"回溯天数: {analysis['history_days']}")
+        print(f"\n综合推荐: {analysis['recommendation']}")
+        print(f"置信度: {analysis['confidence']*100:.1f}%")
+        
+        print(f"\n【详细分析】")
+        patterns = analysis['patterns']
+        
+        print(f"1. 换手率模式: {patterns['turnover_pattern']['description']}")
+        print(f"2. 强弱转换模式: {patterns['strength_pattern']['description']}")
+        print(f"3. 量价关系模式: {patterns['volume_price_pattern']['description']}")
+        print(f"4. 连板类型模式: {patterns['limit_up_pattern']['description']}")
+        
+        print(f"\n【关键因素】")
+        for factor in patterns['comprehensive_assessment']['key_factors']:
+            print(f"  • {factor}")
+            
+    except Exception as e:
+        print(f"模式分析过程出错: {e}")
+        import traceback
+        traceback.print_exc()
 
 def main_ui(stock_monitor, stock_data_fetcher):
     """
@@ -352,6 +413,9 @@ def main_ui(stock_monitor, stock_data_fetcher):
                 print("监控模块未加载，无法进行综合分析")
         
         elif choice == "2":
+            run_pattern_analysis()
+        
+        elif choice == "3":
             print("感谢使用，再见！")
             break
 

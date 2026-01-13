@@ -55,6 +55,10 @@ def main():
     ui_path = os.path.join(current_dir, "stock_analysis_ui.py")
     ui_module = import_module("stock_analysis_ui", ui_path)
     
+    # ==================== 导入模式分析模块 ====================
+    pattern_path = os.path.join(current_dir, "stock_pattern_analyzer.py")
+    pattern_module = import_module("stock_pattern_analyzer", pattern_path)
+    
     if ui_module:
         # 运行用户界面
         ui_module.main_ui(stock_monitor, stock_data_fetcher)
