@@ -296,38 +296,58 @@ class StockDataFetcher:
             
             # 查找目标股票
             stock_data = None
-            if '代码' in zt_pool_df.columns:
-                stock_data = zt_pool_df[zt_pool_df['代码'] == symbol_clean]
+            
+            # 尝试不同的列名来查找股票
+            for code_col in ['代码', 'symbol', '股票代码']:
+                if code_col in zt_pool_df.columns:
+                    # 标准化代码列
+                    zt_pool_df[code_col] = zt_pool_df[code_col].astype(str).str.zfill(6)
+                    stock_data = zt_pool_df[zt_pool_df[code_col] == symbol_clean]
+                    if not stock_data.empty:
+                        break
             
             if stock_data is None or stock_data.empty:
-                # 尝试其他列名
-                if 'symbol' in zt_pool_df.columns:
-                    stock_data = zt_pool_df[zt_pool_df['symbol'] == symbol_clean]
-                
-                if stock_data is None or stock_data.empty:
-                    return {
-                        '数据来源': '不在涨停股池',
-                        '连板数': 0,
-                        '连板阶段': "无连板",
-                        '首次封板时间': '',
-                        '炸板次数': 0,
-                        '查询日期': date
-                    }
+                return {
+                    '数据来源': '不在涨停股池',
+                    '连板数': 0,
+                    '连板阶段': "无连板",
+                    '首次封板时间': '',
+                    '炸板次数': 0,
+                    '查询日期': date
+                }
             
             # 获取股票数据
             stock_row = stock_data.iloc[0]
             
-            # 获取连板数
+            # 获取连板数 - 优先从涨停股池获取
             streak_count = 1  # 默认值
             
             # 尝试不同的列名
-            for col in ['连板数', '连续涨停天数', 'streak']:
+            for col in ['连板数', '连续涨停天数', 'streak', '涨停天数']:
                 if col in stock_row and pd.notna(stock_row[col]):
                     try:
-                        streak_count = int(stock_row[col])
+                        # 尝试转换为整数
+                        val = stock_row[col]
+                        if isinstance(val, (int, float)):
+                            streak_count = int(val)
+                        elif isinstance(val, str):
+                            # 提取数字
+                            import re
+                            match = re.search(r'(\d+)', val)
+                            if match:
+                                streak_count = int(match.group(1))
+                            else:
+                                streak_count = int(float(val))
+                        else:
+                            streak_count = int(float(val))
                         break
-                    except:
+                    except Exception as e:
+                        print(f"转换连板数失败 {col}: {val}, 错误: {e}")
                         continue
+            
+            # 确保连板数至少为1（如果在涨停股池中）
+            if streak_count < 1:
+                streak_count = 1
             
             # 计算连板阶段
             streak_stage = self._calculate_streak_stage(streak_count)

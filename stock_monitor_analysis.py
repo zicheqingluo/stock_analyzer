@@ -440,14 +440,13 @@ class StockMonitorAnalysis:
                 stock_info = get_stock_info(stock_code)
                 if stock_info:
                     # 尝试从多个可能的字段中提取连板天数
-                    for field in ['连板天数', '连板数', '连板', 'streak_days', 'streak', '连续涨停天数', '涨停天数', '连板高度']:
+                    for field in ['连板数', '连续涨停天数', 'streak', '连板天数', '涨停天数', '连板高度']:
                         if field in stock_info:
                             value = stock_info[field]
                             if isinstance(value, (int, float)):
                                 result = int(value)
-                                # 直接返回结果，不额外加1
-                                # 因为数据源应该已经包含了今天的状态
-                                if result > 0:
+                                # 确保结果至少为1（如果今天涨停）
+                                if result >= 1:
                                     print(f"从 stock_data_fetcher 获取到连板天数: {result}")
                                     return result
                             elif isinstance(value, str):
@@ -455,7 +454,7 @@ class StockMonitorAnalysis:
                                 match = re.search(r'(\d+)', value)
                                 if match:
                                     result = int(match.group(1))
-                                    if result > 0:
+                                    if result >= 1:
                                         print(f"从 stock_data_fetcher 字段 {field} 提取到连板天数: {result}")
                                         return result
             except ImportError:
@@ -475,22 +474,47 @@ class StockMonitorAnalysis:
                 
                 streak_days = 0
                 max_days_to_check = 30  # 最多检查30个交易日
-                consecutive_failures = 0
                 
                 print(f"开始使用备用方法计算连板天数: {stock_code}")
                 
-                # 首先检查今天是否涨停
+                # 检查今天是否在涨停板池中
                 today_in_pool = False
                 try:
                     df_today = ak.stock_zt_pool_em(date=current_date)
-                    if df_today is not None and not df_today.empty and '代码' in df_today.columns:
-                        codes_today = df_today['代码'].astype(str).str.zfill(6).tolist()
-                        if stock_code in codes_today:
-                            today_in_pool = True
-                            streak_days = 1
-                            print(f"  今天 ({current_date}) 涨停，开始向前检查连板")
-                except:
-                    pass
+                    if df_today is not None and not df_today.empty:
+                        # 检查列名
+                        code_col = None
+                        for col in ['代码', 'symbol', '股票代码']:
+                            if col in df_today.columns:
+                                code_col = col
+                                break
+                        
+                        if code_col:
+                            # 标准化代码
+                            df_today[code_col] = df_today[code_col].astype(str).str.zfill(6)
+                            codes_today = df_today[code_col].tolist()
+                            if stock_code in codes_today:
+                                today_in_pool = True
+                                # 尝试从今天的数据中获取连板数
+                                if '连板数' in df_today.columns or '连续涨停天数' in df_today.columns:
+                                    for col in ['连板数', '连续涨停天数']:
+                                        if col in df_today.columns:
+                                            # 找到该股票的行
+                                            stock_row = df_today[df_today[code_col] == stock_code]
+                                            if not stock_row.empty:
+                                                value = stock_row.iloc[0][col]
+                                                if pd.notna(value):
+                                                    try:
+                                                        result = int(value)
+                                                        if result >= 1:
+                                                            print(f"从今天涨停板池获取到连板天数: {result}")
+                                                            return result
+                                                    except:
+                                                        pass
+                                streak_days = 1
+                                print(f"  今天 ({current_date}) 涨停，开始向前检查连板")
+                except Exception as e:
+                    print(f"检查今天涨停板池失败: {e}")
                 
                 # 如果今天涨停，向前检查历史连板
                 if today_in_pool:
@@ -505,18 +529,18 @@ class StockMonitorAnalysis:
                             # 检查是否为空（可能是非交易日）
                             if df is None or df.empty:
                                 # 可能是非交易日，继续检查前一天
-                                consecutive_failures += 1
-                                if consecutive_failures > 5:
-                                    print(f"  连续 {consecutive_failures} 天无法获取数据，停止检查")
-                                    break
                                 continue
                             
-                            # 重置连续失败计数
-                            consecutive_failures = 0
-                            
                             # 检查股票是否在涨停板池中
-                            if '代码' in df.columns:
-                                codes_in_pool = df['代码'].astype(str).str.zfill(6).tolist()
+                            code_col = None
+                            for col in ['代码', 'symbol', '股票代码']:
+                                if col in df.columns:
+                                    code_col = col
+                                    break
+                            
+                            if code_col:
+                                df[code_col] = df[code_col].astype(str).str.zfill(6)
+                                codes_in_pool = df[code_col].tolist()
                                 if stock_code in codes_in_pool:
                                     streak_days += 1
                                     print(f"  发现 {check_date_str} 涨停，当前累计 {streak_days} 连板")
@@ -531,10 +555,6 @@ class StockMonitorAnalysis:
                                 
                         except Exception as e:
                             # 获取数据失败，可能是非交易日或网络问题
-                            consecutive_failures += 1
-                            if consecutive_failures > 5:
-                                print(f"  连续 {consecutive_failures} 次获取数据失败，停止检查")
-                                break
                             continue
                     
                     # 确保 streak_days 至少为1（今天涨停）
@@ -555,8 +575,15 @@ class StockMonitorAnalysis:
                             if df is None or df.empty:
                                 continue
                             
-                            if '代码' in df.columns:
-                                codes_in_pool = df['代码'].astype(str).str.zfill(6).tolist()
+                            code_col = None
+                            for col in ['代码', 'symbol', '股票代码']:
+                                if col in df.columns:
+                                    code_col = col
+                                    break
+                            
+                            if code_col:
+                                df[code_col] = df[code_col].astype(str).str.zfill(6)
+                                codes_in_pool = df[code_col].tolist()
                                 if stock_code in codes_in_pool:
                                     # 找到涨停日，开始向前检查连板
                                     streak_days = 1
@@ -571,8 +598,16 @@ class StockMonitorAnalysis:
                                             df_prev = ak.stock_zt_pool_em(date=prev_date_str)
                                             if df_prev is None or df_prev.empty:
                                                 continue
-                                            if '代码' in df_prev.columns:
-                                                codes_prev = df_prev['代码'].astype(str).str.zfill(6).tolist()
+                                            
+                                            code_col_prev = None
+                                            for col in ['代码', 'symbol', '股票代码']:
+                                                if col in df_prev.columns:
+                                                    code_col_prev = col
+                                                    break
+                                            
+                                            if code_col_prev:
+                                                df_prev[code_col_prev] = df_prev[code_col_prev].astype(str).str.zfill(6)
+                                                codes_prev = df_prev[code_col_prev].tolist()
                                                 if stock_code in codes_prev:
                                                     streak_days += 1
                                                     print(f"  发现 {prev_date_str} 涨停，当前累计 {streak_days} 连板")
