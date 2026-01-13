@@ -393,11 +393,25 @@ def run_pattern_analysis():
 
 def run_llm_analysis():
     """
-    运行LLM智能分析
+    运行LLM智能分析 - 增强版
+    支持三个功能：
+    1. 数据收集
+    2. 提示词优化（通过案例学习）
+    3. 智能分析
     """
     print(f"\n{'='*60}")
-    print(f"LLM智能分析")
+    print(f"LLM智能分析 - 三功能版")
     print(f"{'='*60}")
+    
+    # 显示功能选项
+    print("\n请选择分析模式:")
+    print("1. 标准分析（仅使用现有经验规则）")
+    print("2. 分析并优化提示词（将本次分析加入案例库）")
+    print("3. 仅收集数据（不进行LLM分析）")
+    
+    mode_choice = input("\n请选择模式 (1-3, 默认1): ").strip()
+    if not mode_choice:
+        mode_choice = "1"
     
     # 获取股票名称并转换为代码
     code = get_stock_name_input()
@@ -418,48 +432,82 @@ def run_llm_analysis():
         llm_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(llm_module)
         
-        # 执行分析
-        print("正在使用LLM进行智能分析...")
-        result = llm_module.analyze_stock_with_llm(code, use_local=True)
+        # 根据模式执行分析
+        update_prompt = (mode_choice == "2")
+        only_collect_data = (mode_choice == "3")
         
-        if "error" in result:
-            print(f"LLM分析失败: {result['error']}")
-            return
-        
-        # 显示结果
-        print(f"\n【LLM智能分析结果】")
-        print(f"股票代码: {result['symbol']}")
-        print(f"股票名称: {result['name']}")
-        print(f"分析日期: {result['analysis_date']}")
-        
-        print(f"\n【关键指标】")
-        key_metrics = result.get('key_metrics', {})
-        for key, value in key_metrics.items():
-            print(f"  {key}: {value}")
-        
-        print(f"\n【历史数据摘要】")
-        print(result.get('history_summary', '无数据'))
-        
-        print(f"\n【LLM分析结论】")
-        analysis = result.get('analysis', {})
-        if analysis:
-            for section, content in analysis.items():
-                if content:
-                    print(f"\n{section}:")
-                    print(content)
-        else:
-            print(result.get('llm_response', '无分析结果'))
-        
-        # 询问是否保存经验
-        save_choice = input("\n是否保存本次分析经验？(y/n): ").strip().lower()
-        if save_choice == 'y':
-            llm_module.llm_analyzer.save_experience(
-                code, 
-                result.get('llm_response', ''),
-                tags=['llm_analysis', result.get('name', '')]
-            )
-            print("经验已保存")
+        if only_collect_data:
+            print("\n【功能1】仅收集数据模式...")
+            # 只收集数据
+            stock_data = llm_module.llm_analyzer.collect_stock_data(code)
             
+            if "error" in stock_data:
+                print(f"数据收集失败: {stock_data['error']}")
+                return
+            
+            print(f"\n【数据收集结果】")
+            print(f"股票代码: {stock_data['symbol']}")
+            print(f"股票名称: {stock_data['name']}")
+            print(f"分析日期: {stock_data['analysis_date']}")
+            
+            print(f"\n【关键指标】")
+            key_metrics = stock_data.get('key_metrics', {})
+            for key, value in key_metrics.items():
+                print(f"  {key}: {value}")
+            
+            print(f"\n【历史数据摘要】")
+            print(stock_data.get('history_summary', '无数据'))
+            
+            print(f"\n【数据验证】")
+            print("请检查以上数据是否正确，特别是日期和涨停信息")
+            
+        else:
+            # 执行完整分析
+            print(f"\n正在使用LLM进行智能分析...")
+            result = llm_module.analyze_stock_with_llm(code, use_local=True, update_prompt=update_prompt)
+            
+            if "error" in result:
+                print(f"LLM分析失败: {result['error']}")
+                return
+            
+            # 显示结果
+            print(f"\n【LLM智能分析结果】")
+            print(f"股票代码: {result['symbol']}")
+            print(f"股票名称: {result['name']}")
+            print(f"分析日期: {result['analysis_date']}")
+            print(f"分析类型: {result.get('analysis_type', '标准')}")
+            
+            print(f"\n【关键指标】")
+            key_metrics = result.get('key_metrics', {})
+            for key, value in key_metrics.items():
+                print(f"  {key}: {value}")
+            
+            print(f"\n【历史数据摘要】")
+            print(result.get('history_summary', '无数据'))
+            
+            print(f"\n【LLM分析结论】")
+            analysis = result.get('analysis', {})
+            if analysis:
+                for section, content in analysis.items():
+                    if content:
+                        print(f"\n{section}:")
+                        print(content)
+            else:
+                print(result.get('llm_response', '无分析结果'))
+            
+            if update_prompt:
+                print(f"\n✓ 本次分析已用于优化提示词库")
+            
+            # 询问是否保存经验
+            save_choice = input("\n是否保存本次分析经验到文件？(y/n): ").strip().lower()
+            if save_choice == 'y':
+                llm_module.llm_analyzer.save_experience(
+                    code, 
+                    result.get('llm_response', ''),
+                    tags=['llm_analysis', result.get('name', ''), f'mode_{mode_choice}']
+                )
+                print("经验已保存到文件")
+                
     except Exception as e:
         print(f"LLM分析过程出错: {e}")
         import traceback

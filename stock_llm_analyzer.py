@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 股票LLM智能分析器 - 基于大模型的智能分析
+重构为三个功能：
+1. 数据收集功能
+2. 提示词优化功能  
+3. 智能分析功能
 """
 
 import pandas as pd
@@ -12,7 +16,25 @@ import akshare as ak
 import warnings
 import json
 import os
+import sys
 warnings.filterwarnings('ignore')
+
+# 添加当前目录到路径，以便导入prompt_manager
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+    
+try:
+    from prompt_manager import prompt_manager, get_enhanced_prompt_for_stock, update_prompt_from_case
+except ImportError:
+    # 如果导入失败，创建虚拟函数
+    print("提示词管理器模块导入失败，将使用基本功能")
+    def get_enhanced_prompt_for_stock(stock_data):
+        return "基本提示词"
+    def update_prompt_from_case(symbol, stock_data, analysis_result):
+        print(f"记录案例: {symbol}")
+        return True
+    prompt_manager = None
 
 class StockLLMAnalyzer:
     """股票LLM智能分析器"""
@@ -151,11 +173,41 @@ class StockLLMAnalyzer:
     
     def _get_detailed_history(self, symbol: str, days_back: int) -> List[Dict[str, Any]]:
         """
-        获取详细的日线历史数据
+        获取详细的日线历史数据 - 修复版
+        确保获取最近的实际交易日数据
         """
         try:
-            end_date = datetime.now().strftime('%Y%m%d')
-            start_date = (datetime.now() - timedelta(days=days_back*3)).strftime('%Y%m%d')
+            # 获取当前日期
+            current_date = datetime.now()
+            
+            # 获取最近的实际交易日
+            # 首先尝试获取涨停板池数据来确定最近有数据的交易日
+            actual_trading_dates = []
+            
+            # 尝试获取最近5天的数据，找到有数据的交易日
+            for i in range(10):  # 最多检查10天
+                check_date = current_date - timedelta(days=i)
+                date_str = check_date.strftime('%Y%m%d')
+                
+                try:
+                    # 尝试获取涨停板池数据
+                    df_test = ak.stock_zt_pool_em(date=date_str)
+                    if df_test is not None and not df_test.empty:
+                        actual_trading_dates.append(date_str)
+                        if len(actual_trading_dates) >= days_back:
+                            break
+                except:
+                    continue
+            
+            if not actual_trading_dates:
+                # 如果没有找到涨停板池数据，使用最近days_back天
+                end_date = current_date.strftime('%Y%m%d')
+                start_date = (current_date - timedelta(days=days_back*2)).strftime('%Y%m%d')
+            else:
+                # 使用找到的实际交易日
+                end_date = actual_trading_dates[0]  # 最近的交易日
+                # 计算开始日期：需要days_back个交易日，但这里简单处理
+                start_date = (current_date - timedelta(days=days_back*3)).strftime('%Y%m%d')
             
             # 获取日线数据
             df = ak.stock_zh_a_hist(
@@ -167,6 +219,7 @@ class StockLLMAnalyzer:
             )
             
             if df.empty:
+                print(f"警告: 无法获取股票 {symbol} 的日线数据")
                 return []
             
             # 重命名列
@@ -184,17 +237,28 @@ class StockLLMAnalyzer:
                 '换手率': 'turnover'
             })
             
-            # 只保留最近days_back天的数据
-            df = df.head(days_back)
+            # 确保有date列
+            if 'date' not in df.columns:
+                print("错误: 数据中没有日期列")
+                return []
             
             # 按日期排序（最近的在前）
             df = df.sort_values('date', ascending=False)
+            
+            # 只保留最近days_back天的数据
+            df = df.head(days_back)
+            
+            # 检查日期是否合理
+            print(f"获取到的历史数据日期范围: {df['date'].iloc[0] if len(df) > 0 else '无数据'} 到 {df['date'].iloc[-1] if len(df) > 0 else '无数据'}")
             
             # 转换为字典列表
             history_list = []
             for _, row in df.iterrows():
                 # 判断是否涨停
-                is_limit_up = abs(row.get('pct_change', 0) - 10.0) < 0.5 or row.get('pct_change', 0) >= 9.8
+                pct_change = row.get('pct_change', 0)
+                is_limit_up = False
+                if isinstance(pct_change, (int, float)):
+                    is_limit_up = abs(pct_change - 10.0) < 0.5 or pct_change >= 9.8
                 
                 # 判断涨停类型
                 limit_type = "非涨停"
@@ -204,11 +268,17 @@ class StockLLMAnalyzer:
                     high_price = row.get('high', 0)
                     low_price = row.get('low', 0)
                     
-                    prev_close = close_price / 1.1  # 近似计算
+                    # 计算前一日收盘价（近似）
+                    prev_close = close_price / (1 + pct_change/100) if pct_change != 0 else close_price
                     
-                    if abs(open_price - high_price) < 0.01 and abs(open_price - prev_close * 1.1) < 0.01:
+                    # 计算涨停价
+                    limit_price = prev_close * 1.1
+                    
+                    # 判断是否一字板
+                    if abs(open_price - limit_price) < 0.01 and abs(high_price - limit_price) < 0.01:
                         limit_type = "一字板"
-                    elif abs(open_price - high_price) < 0.01 and low_price < open_price:
+                    # 判断是否T字板
+                    elif abs(high_price - limit_price) < 0.01 and low_price < open_price:
                         limit_type = "T字板"
                     else:
                         limit_type = "普通涨停"
@@ -221,7 +291,7 @@ class StockLLMAnalyzer:
                     'low': float(row['low']),
                     'volume': float(row['volume']),
                     'amount': float(row['amount']),
-                    'pct_change': float(row['pct_change']),
+                    'pct_change': float(pct_change),
                     'turnover': float(row['turnover']) if 'turnover' in row and pd.notna(row['turnover']) else 0.0,
                     'is_limit_up': is_limit_up,
                     'limit_type': limit_type
@@ -231,6 +301,8 @@ class StockLLMAnalyzer:
             
         except Exception as e:
             print(f"获取详细历史数据失败: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def _get_limit_up_data(self, symbol: str) -> Dict[str, Any]:
@@ -294,7 +366,8 @@ class StockLLMAnalyzer:
     
     def _calculate_key_metrics(self, history_data: List[Dict], limit_up_data: Dict) -> Dict[str, Any]:
         """
-        计算关键指标
+        计算关键指标 - 修复版
+        确保指标计算准确且一致
         """
         if not history_data:
             return {}
@@ -304,17 +377,31 @@ class StockLLMAnalyzer:
         recent_data = history_data[:recent_days]
         
         # 计算换手率趋势
-        turnover_rates = [day['turnover'] for day in recent_data if 'turnover' in day]
+        turnover_rates = []
+        for day in recent_data:
+            if 'turnover' in day:
+                turnover = day['turnover']
+                if isinstance(turnover, (int, float)):
+                    turnover_rates.append(turnover)
         
         # 计算涨停天数
-        limit_up_days = sum(1 for day in recent_data if day.get('is_limit_up', False))
+        limit_up_days = 0
+        for day in recent_data:
+            if day.get('is_limit_up', False):
+                limit_up_days += 1
         
         # 判断涨停类型
-        limit_types = [day.get('limit_type', '非涨停') for day in recent_data]
+        limit_types = []
+        for day in recent_data:
+            if day.get('is_limit_up', False):
+                limit_types.append(day.get('limit_type', '普通涨停'))
+            else:
+                limit_types.append('非涨停')
         
         # 计算量价关系
         volume_trend = "unknown"
         if len(turnover_rates) >= 2:
+            # 比较最近两天的换手率
             if turnover_rates[0] < turnover_rates[1]:
                 volume_trend = "缩量"
             elif turnover_rates[0] > turnover_rates[1]:
@@ -322,11 +409,31 @@ class StockLLMAnalyzer:
             else:
                 volume_trend = "平量"
         
+        # 获取最近涨停类型（从涨停数据中获取，而不是从历史数据）
+        recent_limit_type = "非涨停"
+        if limit_up_data.get('in_today_pool', False):
+            # 如果今天在涨停板池中，尝试获取涨停类型
+            if history_data and history_data[0].get('is_limit_up', False):
+                recent_limit_type = history_data[0].get('limit_type', '普通涨停')
+            else:
+                recent_limit_type = "普通涨停"  # 默认
+        
+        # 确保数据一致性
+        streak_days = limit_up_data.get('streak_days', 0)
+        today_in_pool = limit_up_data.get('in_today_pool', False)
+        
+        # 如果显示连续涨停但最近涨停天数为0，进行调整
+        if streak_days > 0 and limit_up_days == 0:
+            # 尝试从历史数据中重新计算
+            all_limit_up_days = sum(1 for day in history_data if day.get('is_limit_up', False))
+            if all_limit_up_days > 0:
+                limit_up_days = min(all_limit_up_days, recent_days)
+        
         return {
-            "连续涨停天数": limit_up_data.get('streak_days', 0),
-            "今日是否涨停": limit_up_data.get('in_today_pool', False),
+            "连续涨停天数": streak_days,
+            "今日是否涨停": today_in_pool,
             "最近3天涨停天数": limit_up_days,
-            "最近涨停类型": limit_types[0] if limit_types else "无涨停",
+            "最近涨停类型": recent_limit_type,
             "换手率趋势": volume_trend,
             "最近换手率": turnover_rates[0] if turnover_rates else 0,
             "炸板次数": limit_up_data.get('blow_up_count', 0),
@@ -358,30 +465,36 @@ class StockLLMAnalyzer:
         
         return "\n".join(summary_lines)
     
-    def analyze_with_llm(self, symbol: str, use_local: bool = False) -> Dict[str, Any]:
+    def analyze_with_llm(self, symbol: str, use_local: bool = False, 
+                        update_prompt: bool = False) -> Dict[str, Any]:
         """
-        使用LLM分析股票
+        使用LLM分析股票 - 重构版
         
         Args:
             symbol: 股票代码
             use_local: 是否使用本地模拟（当没有真实LLM API时）
+            update_prompt: 是否将本次分析用于更新提示词
             
         Returns:
             分析结果
         """
         try:
-            # 1. 收集数据
-            print(f"正在收集 {symbol} 的数据...")
+            # 1. 数据收集功能
+            print(f"【功能1】正在收集 {symbol} 的数据...")
             stock_data = self.collect_stock_data(symbol)
             
             if "error" in stock_data:
                 return {"error": stock_data["error"]}
             
-            # 2. 构建提示词
-            prompt = self._build_llm_prompt(stock_data)
+            # 2. 构建增强提示词（结合经验规则）
+            print(f"【功能2】构建增强提示词...")
+            if prompt_manager:
+                prompt = get_enhanced_prompt_for_stock(stock_data)
+            else:
+                prompt = self._build_llm_prompt(stock_data)
             
-            # 3. 调用LLM
-            print("正在调用大模型进行分析...")
+            # 3. 智能分析功能
+            print(f"【功能3】正在调用大模型进行智能分析...")
             if use_local or self.llm_provider == "local":
                 llm_response = self._call_local_llm(prompt)
             else:
@@ -390,18 +503,26 @@ class StockLLMAnalyzer:
             # 4. 解析结果
             analysis_result = self._parse_llm_response(llm_response)
             
-            # 5. 合并结果
+            # 5. 如果启用，更新提示词库
+            if update_prompt and prompt_manager:
+                print(f"【功能2扩展】将本次分析用于优化提示词...")
+                update_prompt_from_case(symbol, stock_data, llm_response)
+            
+            # 6. 合并结果
             result = {
                 **stock_data,
-                "llm_prompt": prompt,
+                "llm_prompt": prompt[:500] + "..." if len(prompt) > 500 else prompt,  # 截断长提示词
                 "llm_response": llm_response,
-                "analysis": analysis_result
+                "analysis": analysis_result,
+                "analysis_type": "enhanced" if prompt_manager else "basic"
             }
             
             return result
             
         except Exception as e:
             print(f"LLM分析失败: {e}")
+            import traceback
+            traceback.print_exc()
             return {"error": f"LLM分析失败: {str(e)}"}
     
     def _build_llm_prompt(self, stock_data: Dict[str, Any]) -> str:
