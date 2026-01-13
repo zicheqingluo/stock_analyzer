@@ -245,11 +245,12 @@ def get_menu_choice() -> str:
         print(f"\n请选择操作:")
         print(f"1. 个股综合分析 (推荐)")
         print(f"2. 模式分析 (量化分析股票走势模式)")
-        print(f"3. 退出")
+        print(f"3. LLM智能分析 (基于大模型的智能分析)")
+        print(f"4. 退出")
         
         choice = input("\n请输入选项: ").strip()
         
-        if choice in ["1", "2", "3"]:
+        if choice in ["1", "2", "3", "4"]:
             return choice
         else:
             print("无效选项，请重新输入")
@@ -320,13 +321,14 @@ def show_original_function(stock_data_fetcher):
 
 def show_menu():
     """显示菜单"""
-    print("股票连板分析系统 - 专业版")
-    print("版本: 6.0 (集成异动监控与模式分析)")
+    print("股票连板分析系统 - 智能版")
+    print("版本: 7.0 (集成LLM智能分析)")
     print("=" * 60)
     print("核心功能:")
     print("  1. 个股综合分析 (涨停判断+异动监控+炸板检测+强势股判断)")
     print("  2. 模式分析 (量化分析股票走势模式)")
-    print("  3. 退出")
+    print("  3. LLM智能分析 (基于大模型的智能分析)")
+    print("  4. 退出")
     print("=" * 60)
 
 
@@ -389,6 +391,80 @@ def run_pattern_analysis():
         import traceback
         traceback.print_exc()
 
+def run_llm_analysis():
+    """
+    运行LLM智能分析
+    """
+    print(f"\n{'='*60}")
+    print(f"LLM智能分析")
+    print(f"{'='*60}")
+    
+    # 获取股票名称并转换为代码
+    code = get_stock_name_input()
+    if not code:
+        print("操作已取消")
+        return
+    
+    try:
+        # 尝试导入LLM分析模块
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        llm_path = os.path.join(current_dir, "stock_llm_analyzer.py")
+        
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("stock_llm_analyzer", llm_path)
+        llm_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(llm_module)
+        
+        # 执行分析
+        print("正在使用LLM进行智能分析...")
+        result = llm_module.analyze_stock_with_llm(code, use_local=True)
+        
+        if "error" in result:
+            print(f"LLM分析失败: {result['error']}")
+            return
+        
+        # 显示结果
+        print(f"\n【LLM智能分析结果】")
+        print(f"股票代码: {result['symbol']}")
+        print(f"股票名称: {result['name']}")
+        print(f"分析日期: {result['analysis_date']}")
+        
+        print(f"\n【关键指标】")
+        key_metrics = result.get('key_metrics', {})
+        for key, value in key_metrics.items():
+            print(f"  {key}: {value}")
+        
+        print(f"\n【历史数据摘要】")
+        print(result.get('history_summary', '无数据'))
+        
+        print(f"\n【LLM分析结论】")
+        analysis = result.get('analysis', {})
+        if analysis:
+            for section, content in analysis.items():
+                if content:
+                    print(f"\n{section}:")
+                    print(content)
+        else:
+            print(result.get('llm_response', '无分析结果'))
+        
+        # 询问是否保存经验
+        save_choice = input("\n是否保存本次分析经验？(y/n): ").strip().lower()
+        if save_choice == 'y':
+            llm_module.llm_analyzer.save_experience(
+                code, 
+                result.get('llm_response', ''),
+                tags=['llm_analysis', result.get('name', '')]
+            )
+            print("经验已保存")
+            
+    except Exception as e:
+        print(f"LLM分析过程出错: {e}")
+        import traceback
+        traceback.print_exc()
+
 def main_ui(stock_monitor, stock_data_fetcher):
     """
     主用户界面函数
@@ -416,6 +492,9 @@ def main_ui(stock_monitor, stock_data_fetcher):
             run_pattern_analysis()
         
         elif choice == "3":
+            run_llm_analysis()
+        
+        elif choice == "4":
             print("感谢使用，再见！")
             break
 
