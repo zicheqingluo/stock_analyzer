@@ -370,7 +370,12 @@ class StockDataFetcher:
         if count == 1:
             return "首板"
         stage_map = {2: "一进二", 3: "二进三", 4: "三进四", 5: "四进五", 6: "五进六", 7: "六进七"}
-        return stage_map.get(count, f"{count-1}进{count}")
+        # 确保 count 在合理范围内
+        if count in stage_map:
+            return stage_map[count]
+        else:
+            # 对于更高的连板数，使用通用格式
+            return f"{count-1}进{count}"
     
     def get_complete_stock_info(self, symbol: str) -> Dict[str, Any]:
         """

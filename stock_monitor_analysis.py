@@ -445,27 +445,8 @@ class StockMonitorAnalysis:
                             value = stock_info[field]
                             if isinstance(value, (int, float)):
                                 result = int(value)
-                                # 检查今天是否涨停，如果涨停且result可能少算一天，则加1
-                                # 首先检查今天是否在涨停板池中
-                                try:
-                                    import akshare as ak
-                                    current_date = self.get_query_date()
-                                    df_today = ak.stock_zt_pool_em(date=current_date)
-                                    if df_today is not None and not df_today.empty and '代码' in df_today.columns:
-                                        codes_today = df_today['代码'].astype(str).str.zfill(6).tolist()
-                                        if stock_code in codes_today:
-                                            # 今天涨停，但result可能没有包括今天
-                                            # 检查阶段信息
-                                            stage_info = stock_info.get('阶段', '')
-                                            # 如果阶段是"X进Y"，且Y等于result，可能今天已经计入
-                                            # 但用户说应该是12，而result是11，所以加1
-                                            # 简单逻辑：如果今天涨停且result>=1，尝试加1
-                                            if result >= 1:
-                                                result += 1
-                                                print(f"检测到今天涨停，调整连板天数: {result-1} -> {result}")
-                                except:
-                                    pass
-                                
+                                # 直接返回结果，不额外加1
+                                # 因为数据源应该已经包含了今天的状态
                                 if result > 0:
                                     print(f"从 stock_data_fetcher 获取到连板天数: {result}")
                                     return result
@@ -474,20 +455,6 @@ class StockMonitorAnalysis:
                                 match = re.search(r'(\d+)', value)
                                 if match:
                                     result = int(match.group(1))
-                                    # 同样检查今天是否涨停
-                                    try:
-                                        import akshare as ak
-                                        current_date = self.get_query_date()
-                                        df_today = ak.stock_zt_pool_em(date=current_date)
-                                        if df_today is not None and not df_today.empty and '代码' in df_today.columns:
-                                            codes_today = df_today['代码'].astype(str).str.zfill(6).tolist()
-                                            if stock_code in codes_today:
-                                                if result >= 1:
-                                                    result += 1
-                                                    print(f"检测到今天涨停，调整连板天数: {result-1} -> {result}")
-                                    except:
-                                        pass
-                                    
                                     if result > 0:
                                         print(f"从 stock_data_fetcher 字段 {field} 提取到连板天数: {result}")
                                         return result
@@ -569,6 +536,10 @@ class StockMonitorAnalysis:
                                 print(f"  连续 {consecutive_failures} 次获取数据失败，停止检查")
                                 break
                             continue
+                    
+                    # 确保 streak_days 至少为1（今天涨停）
+                    if streak_days == 0:
+                        streak_days = 1
                 
                 # 如果今天没涨停，检查昨天是否涨停（可能今天还没收盘）
                 if streak_days == 0:
