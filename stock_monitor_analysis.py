@@ -170,16 +170,31 @@ class StockMonitorAnalysis:
                 except:
                     pass
             
+            # 检测是否为一字板
+            is_one_word_limit = False
+            if is_limit_up and isinstance(change_analysis, dict):
+                limit_up_time = change_analysis.get('涨停时间', '')
+                if limit_up_time and limit_up_time.startswith('09:25'):
+                    is_one_word_limit = True
+                    print(f"检测到一字板涨停，涨停时间: {limit_up_time}")
+            
+            # 如果是一字板，即使不在强势股池中也视为强势股
+            if is_one_word_limit and not is_in_strong_pool:
+                print("一字板涨停，自动视为强势股")
+                is_in_strong_pool = True
+            
             # 生成综合评级
             rating_info = self._generate_rating(
                 is_limit_up, has_open_limit, has_big_sell, 
-                is_in_炸板_pool, is_in_strong_pool, has_re_limit
+                is_in_炸板_pool, is_in_strong_pool, has_re_limit,
+                is_one_word_limit
             )
             
             # 生成投资建议
             advice = self._generate_investment_advice(
                 is_limit_up, has_open_limit, has_big_sell, 
-                is_in_炸板_pool, is_in_strong_pool, has_re_limit
+                is_in_炸板_pool, is_in_strong_pool, has_re_limit,
+                is_one_word_limit
             )
             
             # 合并结果
@@ -199,6 +214,7 @@ class StockMonitorAnalysis:
                     '是否漏单': has_big_sell,
                     '是否重新封板': has_re_limit,
                     '是否强势股': is_in_strong_pool,
+                    '是否一字板': is_one_word_limit,
                     '炸板次数': max(
                         change_analysis.get('炸板次数', 0) if isinstance(change_analysis, dict) else 0,
                         炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0
@@ -239,7 +255,8 @@ class StockMonitorAnalysis:
     
     def _generate_rating(self, is_limit_up: bool, has_open_limit: bool, 
                         has_big_sell: bool, is_in_炸板_pool: bool, 
-                        is_in_strong_pool: bool, has_re_limit: bool = False) -> Dict[str, str]:
+                        is_in_strong_pool: bool, has_re_limit: bool = False,
+                        is_one_word_limit: bool = False) -> Dict[str, str]:
         """生成综合评级"""
         # 如果有炸板但没有重新封板，评级较低
         if has_open_limit and not has_re_limit:
@@ -247,6 +264,19 @@ class StockMonitorAnalysis:
                 'rating': "D-",
                 'description': "炸板后未重新封板，走势疲弱"
             }
+        
+        # 一字板特殊处理
+        if is_one_word_limit:
+            if not has_big_sell and not is_in_炸板_pool:
+                return {
+                    'rating': "A++",
+                    'description': "一字板涨停，封板极强，无漏单"
+                }
+            else:
+                return {
+                    'rating': "A+",
+                    'description': "一字板涨停，但需关注异动"
+                }
         
         # 其他评级逻辑保持不变，但需要考虑重新封板的情况
         if is_limit_up and not has_open_limit and not is_in_炸板_pool and not has_big_sell and is_in_strong_pool:
@@ -302,11 +332,19 @@ class StockMonitorAnalysis:
     
     def _generate_investment_advice(self, is_limit_up: bool, has_open_limit: bool,
                                    has_big_sell: bool, is_in_炸板_pool: bool,
-                                   is_in_strong_pool: bool, has_re_limit: bool = False) -> str:
+                                   is_in_strong_pool: bool, has_re_limit: bool = False,
+                                   is_one_word_limit: bool = False) -> str:
         """生成投资建议"""
         # 如果有炸板但没有重新封板
         if has_open_limit and not has_re_limit:
             return "炸板后未重新封板，走势疲弱，建议回避"
+        
+        # 一字板特殊建议
+        if is_one_word_limit:
+            if not has_big_sell and not is_in_炸板_pool:
+                return "一字板涨停，封板极强，但需注意次日开板风险，谨慎参与"
+            else:
+                return "一字板涨停，但存在异动，需密切关注"
         
         # 其他建议逻辑
         if is_limit_up and not has_open_limit and not is_in_炸板_pool and not has_big_sell and is_in_strong_pool:
