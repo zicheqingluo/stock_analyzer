@@ -349,7 +349,7 @@ def run_quant_strategy():
         if not os.path.exists(quant_path):
             print("量化策略模块不存在，正在创建...")
             # 创建量化策略管理器文件
-            self.create_quant_strategy_manager()
+            create_quant_strategy_manager()
         
         if current_dir not in sys.path:
             sys.path.insert(0, current_dir)
