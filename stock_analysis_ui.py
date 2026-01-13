@@ -322,74 +322,285 @@ def show_original_function(stock_data_fetcher):
 def show_menu():
     """显示菜单"""
     print("股票连板分析系统 - 智能版")
-    print("版本: 7.0 (集成LLM智能分析)")
+    print("版本: 8.0 (集成量化策略管理)")
     print("=" * 60)
     print("核心功能:")
     print("  1. 个股综合分析 (涨停判断+异动监控+炸板检测+强势股判断)")
-    print("  2. 模式分析 (量化分析股票走势模式)")
+    print("  2. 量化策略 (查看和升级优化策略)")
     print("  3. LLM智能分析 (基于大模型的智能分析)")
     print("  4. 退出")
     print("=" * 60)
 
 
-def run_pattern_analysis():
+def run_quant_strategy():
     """
-    运行模式分析
+    运行量化策略管理
     """
     print(f"\n{'='*60}")
-    print(f"模式分析")
+    print(f"量化策略管理")
     print(f"{'='*60}")
     
-    # 获取股票名称并转换为代码
-    code = get_stock_name_input()
-    if not code:
-        print("操作已取消")
-        return
-    
     try:
-        # 尝试导入模式分析模块
+        # 尝试导入量化策略模块
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        pattern_path = os.path.join(current_dir, "stock_pattern_analyzer.py")
+        quant_path = os.path.join(current_dir, "quant_strategy_manager.py")
+        
+        # 检查文件是否存在
+        if not os.path.exists(quant_path):
+            print("量化策略模块不存在，正在创建...")
+            # 创建量化策略管理器文件
+            self.create_quant_strategy_manager()
         
         if current_dir not in sys.path:
             sys.path.insert(0, current_dir)
         
         import importlib.util
-        spec = importlib.util.spec_from_file_location("stock_pattern_analyzer", pattern_path)
-        pattern_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(pattern_module)
+        spec = importlib.util.spec_from_file_location("quant_strategy_manager", quant_path)
+        quant_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(quant_module)
         
-        # 执行分析
-        analysis = pattern_module.analyze_stock_pattern(code)
+        # 显示当前策略
+        strategies = quant_module.view_current_strategies()
+        print(f"\n【当前量化策略】")
+        if strategies:
+            for i, strategy in enumerate(strategies, 1):
+                print(f"{i}. {strategy.get('name', '未命名策略')}")
+                print(f"   描述: {strategy.get('description', '无描述')}")
+                print(f"   创建时间: {strategy.get('created_at', '未知')}")
+                print()
+        else:
+            print("暂无策略，请创建新策略")
         
-        if "error" in analysis:
-            print(f"模式分析失败: {analysis['error']}")
-            return
+        # 提供选项
+        print("\n请选择操作:")
+        print("1. 升级优化策略")
+        print("2. 查看策略详情")
+        print("3. 返回主菜单")
         
-        # 显示结果
-        print(f"\n【模式分析结果】")
-        print(f"股票代码: {analysis['symbol']}")
-        print(f"分析日期: {analysis['analysis_date']}")
-        print(f"回溯天数: {analysis['history_days']}")
-        print(f"\n综合推荐: {analysis['recommendation']}")
-        print(f"置信度: {analysis['confidence']*100:.1f}%")
+        choice = input("请输入选项: ").strip()
         
-        print(f"\n【详细分析】")
-        patterns = analysis['patterns']
-        
-        print(f"1. 换手率模式: {patterns['turnover_pattern']['description']}")
-        print(f"2. 强弱转换模式: {patterns['strength_pattern']['description']}")
-        print(f"3. 量价关系模式: {patterns['volume_price_pattern']['description']}")
-        print(f"4. 连板类型模式: {patterns['limit_up_pattern']['description']}")
-        
-        print(f"\n【关键因素】")
-        for factor in patterns['comprehensive_assessment']['key_factors']:
-            print(f"  • {factor}")
-            
+        if choice == "1":
+            user_input = input("请输入您的策略优化想法: ").strip()
+            if user_input:
+                print("\n正在生成优化策略...")
+                new_strategy = quant_module.upgrade_strategy(user_input)
+                print(f"\n【新生成的策略】")
+                print(f"名称: {new_strategy.get('name', '新策略')}")
+                print(f"描述: {new_strategy.get('description', '无描述')}")
+                print(f"内容:\n{new_strategy.get('content', '无内容')}")
+                print(f"\n策略已保存到本地!")
+            else:
+                print("输入为空，跳过策略升级")
+        elif choice == "2":
+            if strategies:
+                try:
+                    idx = int(input(f"请输入要查看的策略编号 (1-{len(strategies)}): ").strip())
+                    if 1 <= idx <= len(strategies):
+                        strategy = strategies[idx-1]
+                        print(f"\n【策略详情】")
+                        print(f"名称: {strategy.get('name', '未命名策略')}")
+                        print(f"描述: {strategy.get('description', '无描述')}")
+                        print(f"创建时间: {strategy.get('created_at', '未知')}")
+                        print(f"内容:\n{strategy.get('content', '无内容')}")
+                    else:
+                        print("编号超出范围")
+                except ValueError:
+                    print("请输入有效的数字")
+            else:
+                print("暂无策略可查看")
+                
     except Exception as e:
-        print(f"模式分析过程出错: {e}")
+        print(f"量化策略功能失败: {e}")
         import traceback
         traceback.print_exc()
+
+def create_quant_strategy_manager(self=None):
+    """创建量化策略管理器文件"""
+    quant_content = '''#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+量化策略管理器
+功能：
+1. 查看当前的量化策略
+2. 升级优化策略（根据用户输入结合历史策略，通过大模型生成最新策略并存储到本地）
+"""
+
+import os
+import json
+import datetime
+from typing import Dict, List, Any, Optional
+import importlib.util
+
+# 策略存储文件
+STRATEGY_FILE = "quant_strategies.json"
+
+def load_strategies() -> List[Dict[str, Any]]:
+    """加载所有策略"""
+    if not os.path.exists(STRATEGY_FILE):
+        # 创建默认策略
+        default_strategies = [
+            {
+                "name": "基础涨停板策略",
+                "description": "基于涨停板突破的简单策略",
+                "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "content": """
+策略逻辑：
+1. 选择当日涨停的股票
+2. 检查成交量是否放大（前一日1.5倍以上）
+3. 检查是否突破关键压力位
+4. 次日开盘价在涨停价±2%范围内考虑买入
+5. 止损：跌破涨停价5%卖出
+6. 止盈：上涨15%或出现放量滞涨卖出
+                """
+            },
+            {
+                "name": "连板股回调策略",
+                "description": "针对连板后回调的买入策略",
+                "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "content": """
+策略逻辑：
+1. 选择连续2-3个涨停板的股票
+2. 等待回调至第一个涨停板开盘价附近
+3. 成交量萎缩至涨停日50%以下
+4. 出现止跌信号（长下影线或小阳线）时买入
+5. 止损：跌破第一个涨停板最低价
+6. 止盈：反弹至最近涨停价附近卖出
+                """
+            }
+        ]
+        save_strategies(default_strategies)
+        return default_strategies
+    
+    try:
+        with open(STRATEGY_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"加载策略文件失败: {e}")
+        return []
+
+def save_strategies(strategies: List[Dict[str, Any]]) -> bool:
+    """保存策略到文件"""
+    try:
+        with open(STRATEGY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(strategies, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"保存策略文件失败: {e}")
+        return False
+
+def view_current_strategies() -> List[Dict[str, Any]]:
+    """查看当前所有策略"""
+    return load_strategies()
+
+def upgrade_strategy(user_input: str) -> Dict[str, Any]:
+    """升级优化策略
+    
+    Args:
+        user_input: 用户输入的优化想法
+        
+    Returns:
+        新生成的策略
+    """
+    # 加载现有策略
+    existing_strategies = load_strategies()
+    
+    # 构建提示词
+    prompt = f"""
+你是一个专业的量化策略分析师。请根据以下信息生成一个新的股票交易策略：
+
+现有策略摘要：
+{json.dumps([s['name'] + ': ' + s['description'] for s in existing_strategies[:3]], ensure_ascii=False, indent=2)}
+
+用户的新需求：
+{user_input}
+
+请生成一个完整的量化交易策略，包含以下部分：
+1. 策略名称
+2. 策略描述
+3. 核心逻辑
+4. 买入条件
+5. 卖出条件（止损和止盈）
+6. 风险控制
+7. 适用市场环境
+
+请用中文回答，内容要具体、可执行。
+"""
+    
+    # 调用LLM生成新策略
+    try:
+        # 尝试导入LLM分析器
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        llm_path = os.path.join(current_dir, "stock_llm_analyzer.py")
+        
+        spec = importlib.util.spec_from_file_location("stock_llm_analyzer", llm_path)
+        llm_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(llm_module)
+        
+        # 调用LLM
+        llm_response = llm_module.llm_analyzer._call_local_llm(prompt)
+        
+        # 解析响应
+        strategy_content = llm_response
+        
+        # 创建新策略对象
+        new_strategy = {
+            "name": f"优化策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
+            "description": f"基于用户需求生成的策略: {user_input[:50]}...",
+            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "content": strategy_content,
+            "user_input": user_input,
+            "source": "llm_generated"
+        }
+        
+        # 保存新策略
+        existing_strategies.append(new_strategy)
+        save_strategies(existing_strategies)
+        
+        return new_strategy
+        
+    except Exception as e:
+        print(f"调用LLM失败: {e}")
+        # 如果LLM调用失败，创建一个简单的策略
+        new_strategy = {
+            "name": f"手动策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
+            "description": f"基于用户需求生成的策略: {user_input[:50]}...",
+            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "content": f"""
+策略名称：基于用户输入的策略
+用户需求：{user_input}
+
+策略逻辑：
+1. 结合用户需求与现有策略框架
+2. 优化买入卖出条件
+3. 加强风险控制
+
+具体规则待进一步细化。
+            """,
+            "user_input": user_input,
+            "source": "manual_fallback"
+        }
+        
+        existing_strategies.append(new_strategy)
+        save_strategies(existing_strategies)
+        
+        return new_strategy
+
+if __name__ == "__main__":
+    # 测试代码
+    print("量化策略管理器测试")
+    strategies = view_current_strategies()
+    print(f"当前有 {len(strategies)} 个策略")
+    for i, s in enumerate(strategies):
+        print(f"{i+1}. {s['name']}")
+'''
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    quant_path = os.path.join(current_dir, "quant_strategy_manager.py")
+    
+    with open(quant_path, 'w', encoding='utf-8') as f:
+        f.write(quant_content)
+    
+    print(f"量化策略管理器已创建: {quant_path}")
 
 def run_llm_analysis():
     """
@@ -537,7 +748,7 @@ def main_ui(stock_monitor, stock_data_fetcher):
                 print("监控模块未加载，无法进行综合分析")
         
         elif choice == "2":
-            run_pattern_analysis()
+            run_quant_strategy()
         
         elif choice == "3":
             run_llm_analysis()
