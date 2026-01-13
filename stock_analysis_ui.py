@@ -244,7 +244,7 @@ def get_menu_choice() -> str:
     while True:
         print(f"\n请选择操作:")
         print(f"1. 个股综合分析 (推荐)")
-        print(f"2. 模式分析 (量化分析股票走势模式)")
+        print(f"2. 量化策略 (查看和升级优化策略)")
         print(f"3. LLM智能分析 (基于大模型的智能分析)")
         print(f"4. 退出")
         
