@@ -249,6 +249,8 @@ def main():
     if ui_module:
         # 运行用户界面
         ui_module.main_ui(stock_monitor, stock_data_fetcher)
+        # 确保程序退出
+        sys.exit(0)
     else:
         print("用户界面模块导入失败，无法启动系统")
 

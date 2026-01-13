@@ -496,7 +496,7 @@ def main_ui(stock_monitor, stock_data_fetcher):
         
         elif choice == "4":
             print("感谢使用，再见！")
-            break
+            return
 
 
 if __name__ == "__main__":
