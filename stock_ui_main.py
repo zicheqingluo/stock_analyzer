@@ -220,5 +220,9 @@ def main_ui(stock_monitor, stock_data_fetcher):
         
         elif choice == "2":
             print("感谢使用，再见！")
-            import sys
-            sys.exit(0)
+            # 先跳出循环
+            break
+    
+    # 退出程序
+    import sys
+    sys.exit(0)
