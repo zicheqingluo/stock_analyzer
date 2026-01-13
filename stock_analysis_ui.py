@@ -132,6 +132,7 @@ def _format_key_metrics(key_metrics: Dict[str, Any]) -> List[str]:
     
     metrics = [
         ("是否涨停", key_metrics.get('是否涨停', False)),
+        ("是否一字板", key_metrics.get('是否一字板', False)),
         ("是否有炸板", key_metrics.get('是否有炸板', False)),
         ("是否漏单", key_metrics.get('是否漏单', False)),
         ("是否强势股", key_metrics.get('是否强势股', False)),
