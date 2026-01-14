@@ -64,23 +64,39 @@ def view_current_strategies() -> List[Dict[str, Any]]:
     
     summary_dir = "pattern_summaries"
     if os.path.exists(summary_dir):
+        pattern_summary_count = 0
         for filename in os.listdir(summary_dir):
             if filename.endswith('.json') and filename.startswith('summary_'):
                 filepath = os.path.join(summary_dir, filename)
                 try:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         summary_data = json.load(f)
+                    
+                    # 检查是否是pattern_summary_few_shot类型
+                    strategy_type = summary_data.get("type", "pattern_summary")
+                    
                     strategies.append({
                         "name": summary_data.get("name", "规律总结"),
                         "description": summary_data.get("description", "交易规律总结"),
                         "created_at": summary_data.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                         "content": summary_data.get("summary", ""),
-                        "type": "pattern_summary",
+                        "type": strategy_type,
                         "file_path": filepath,
                         "id": summary_data.get("id", "")
                     })
-                except:
-                    pass
+                    
+                    if strategy_type == "pattern_summary_few_shot":
+                        pattern_summary_count += 1
+                        
+                except Exception as e:
+                    print(f"加载规律总结文件 {filename} 失败: {e}")
+                    continue
+        
+        # 如果没有找到pattern_summary_few_shot类型的规律，确保返回空列表
+        # 这个信息会在调用函数中处理
+    else:
+        # 如果目录不存在，创建它
+        os.makedirs(summary_dir, exist_ok=True)
     
     return strategies
 

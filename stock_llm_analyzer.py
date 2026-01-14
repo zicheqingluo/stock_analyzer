@@ -214,18 +214,26 @@ class StockLLMAnalyzer:
                                     if pattern_name == "最新规律":  # 只取第一个作为主要参考
                                         pattern_name = strategy.get("name", "最新规律")
                             
-                            pattern_summary = f"""
+                            if pattern_count > 0:
+                                pattern_summary = f"""
 
 【用户总结的交易规律 - {pattern_name}】
 {summary}
 
 请参考以上用户总结的规律，结合当前股票数据进行对比分析。"""
-                            pattern_info = f"✓ 已加入用户总结的规律: {pattern_name} (共{pattern_count}条规律)"
-                            print(pattern_info)
-                            if pattern_count > 1:
-                                print(f"  可用规律列表: {', '.join(pattern_list[:5])}{'...' if len(pattern_list) > 5 else ''}")
+                                pattern_info = f"✓ 已加入用户总结的规律: {pattern_name} (共{pattern_count}条规律)"
+                                print(pattern_info)
+                                if pattern_count > 1:
+                                    print(f"  可用规律列表: {', '.join(pattern_list[:5])}{'...' if len(pattern_list) > 5 else ''}")
+                            else:
+                                # 虽然summary存在，但没有找到pattern_summary_few_shot类型的策略
+                                print("未找到用户总结的规律")
+                                pattern_summary = ""
+                                pattern_info = ""
                         else:
                             print("未找到用户总结的规律")
+                            pattern_summary = ""
+                            pattern_info = ""
                 except Exception as e:
                     print(f"获取规律总结失败: {e}")
             

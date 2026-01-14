@@ -978,6 +978,9 @@ def run_llm_analysis():
                         print("✓ 将使用最新规律（默认）")
                 else:
                     print("✓ 将使用最新规律（默认）")
+            else:
+                print("未找到用户总结的规律")
+                print("✓ 将不使用特定规律")
         except Exception as e:
             print(f"获取规律列表失败: {e}")
             print("✓ 将使用最新规律（默认）")
