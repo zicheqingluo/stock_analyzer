@@ -254,7 +254,37 @@ class StockLLMAnalyzer:
 
 请提供详细的分析，特别注意参考用户总结的规律（如果提供了的话）。"""
             
-            # 3. 智能分析功能
+            # 3. 显示完整提示词和输入数据（调试）
+            print(f"\n{'='*60}")
+            print(f"【发送给大模型的完整提示词】")
+            print(f"{'='*60}")
+            print(f"提示词长度: {len(prompt)} 字符")
+            print(f"\n【股票数据摘要】")
+            print(f"股票代码: {stock_data.get('symbol', symbol)}")
+            print(f"股票名称: {stock_data.get('name', '未知')}")
+            print(f"分析日期: {stock_data.get('analysis_date', '未知')}")
+            
+            print(f"\n【关键指标】")
+            key_metrics = stock_data.get('key_metrics', {})
+            for key, value in key_metrics.items():
+                print(f"  {key}: {value}")
+            
+            print(f"\n【历史数据摘要】")
+            print(stock_data.get('history_summary', '无数据'))
+            
+            if pattern_summary:
+                print(f"\n【使用的量化规律】")
+                # 显示规律的前200个字符
+                pattern_preview = pattern_summary[:200] + "..." if len(pattern_summary) > 200 else pattern_summary
+                print(pattern_preview)
+            else:
+                print(f"\n【使用的量化规律】: 无")
+            
+            print(f"\n【提示词预览（前500字符）】")
+            print(prompt[:500] + "..." if len(prompt) > 500 else prompt)
+            print(f"{'='*60}\n")
+            
+            # 4. 智能分析功能
             print(f"【大模型分析】正在调用 {self.llm_provider} API 进行智能分析...")
             if not self.llm_core:
                 return {"error": "LLM核心模块未初始化"}
@@ -262,8 +292,13 @@ class StockLLMAnalyzer:
             # 调用LLM API，不使用本地模拟
             llm_response = self.llm_core.call_llm(prompt, use_local=False)
             
-            # 4. 解析结果
+            # 5. 解析结果
             analysis_result = self.llm_core.parse_llm_response(llm_response)
+            
+            # 如果解析结果为空，显示原始响应
+            if not any(analysis_result.values()):
+                print(f"【警告】解析LLM响应失败，将显示原始响应")
+                analysis_result = {"原始响应": llm_response}
             
             # 5. 更新提示词库
             if update_prompt and prompt_manager:

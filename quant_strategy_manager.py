@@ -88,6 +88,19 @@ def view_current_strategies() -> List[Dict[str, Any]]:
                     if strategy_type == "pattern_summary_few_shot":
                         pattern_summary_count += 1
                         
+                except json.JSONDecodeError as e:
+                    print(f"加载规律总结文件 {filename} 失败（JSON格式错误）: {e}")
+                    # 尝试修复或删除损坏的文件
+                    try:
+                        # 读取文件内容
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        # 尝试找到并修复常见的JSON问题
+                        # 这里可以添加更复杂的修复逻辑
+                        print(f"文件 {filename} 可能已损坏，建议删除或修复")
+                    except:
+                        pass
+                    continue
                 except Exception as e:
                     print(f"加载规律总结文件 {filename} 失败: {e}")
                     continue
@@ -275,10 +288,11 @@ def _make_json_serializable(obj):
     if isinstance(obj, (str, int, float, bool, type(None))):
         return obj
     # 处理日期时间类型
-    elif isinstance(obj, datetime.datetime):
-        return obj.strftime("%Y-%m-%d %H:%M:%S")
-    elif isinstance(obj, datetime.date):
-        return obj.strftime("%Y-%m-%d")
+    elif isinstance(obj, (datetime.datetime, datetime.date)):
+        try:
+            return obj.strftime("%Y-%m-%d")
+        except:
+            return str(obj)
     # 处理列表和元组
     elif isinstance(obj, (list, tuple)):
         return [_make_json_serializable(item) for item in obj]

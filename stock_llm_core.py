@@ -187,6 +187,10 @@ class StockLLMCore:
             "风险提示": ""
         }
         
+        # 如果响应为空，返回空字典
+        if not response:
+            return sections
+        
         current_section = None
         current_content = []
         
@@ -194,20 +198,31 @@ class StockLLMCore:
             line = line.strip()
             
             # 检查是否是新的章节
+            section_found = False
             for section in sections.keys():
-                if line.startswith(section) or f"【{section}】" in line:
+                # 检查多种可能的格式
+                if (line.startswith(section) or 
+                    f"【{section}】" in line or 
+                    f"{section}：" in line or
+                    f"{section}:" in line):
                     if current_section:
                         sections[current_section] = '\n'.join(current_content).strip()
                     current_section = section
                     current_content = []
+                    section_found = True
                     break
-            else:
+            
+            if not section_found:
                 if current_section and line:
                     current_content.append(line)
         
         # 处理最后一个章节
         if current_section:
             sections[current_section] = '\n'.join(current_content).strip()
+        
+        # 如果所有章节都为空，但响应不为空，将整个响应放入"详细分析"
+        if not any(sections.values()) and response:
+            sections["详细分析"] = response[:1000]  # 限制长度
         
         return sections
     

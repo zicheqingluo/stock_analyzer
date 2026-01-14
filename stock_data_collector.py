@@ -369,6 +369,7 @@ class StockDataCollector:
         """保存数据到缓存"""
         import os
         import json
+        from datetime import datetime
         
         cache_dir = "stock_data_cache"
         if not os.path.exists(cache_dir):
@@ -377,10 +378,41 @@ class StockDataCollector:
         cache_file = os.path.join(cache_dir, f"{cache_key}.json")
         
         try:
+            # 确保数据是可序列化的
+            def make_serializable(obj):
+                if isinstance(obj, (str, int, float, bool, type(None))):
+                    return obj
+                elif isinstance(obj, (datetime, datetime.date)):
+                    return obj.strftime("%Y-%m-%d")
+                elif isinstance(obj, dict):
+                    return {k: make_serializable(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [make_serializable(item) for item in obj]
+                else:
+                    try:
+                        return str(obj)
+                    except:
+                        return None
+            
+            serializable_data = make_serializable(data)
+            
             with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump(serializable_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"保存缓存失败: {e}")
+            # 尝试简化数据
+            try:
+                simplified_data = {
+                    "symbol": data.get("symbol", ""),
+                    "name": data.get("name", ""),
+                    "analysis_date": data.get("analysis_date", ""),
+                    "key_metrics": data.get("key_metrics", {}),
+                    "history_summary": data.get("history_summary", "")
+                }
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json.dump(simplified_data, f, ensure_ascii=False, indent=2)
+            except Exception as e2:
+                print(f"简化缓存保存也失败: {e2}")
     
     def _generate_history_summary(self, history_data: List[Dict]) -> str:
         """
