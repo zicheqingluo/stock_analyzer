@@ -145,29 +145,41 @@ def _make_json_serializable(obj):
     import pandas as pd
     import numpy as np
     
+    # 处理基本类型
     if isinstance(obj, (str, int, float, bool, type(None))):
         return obj
+    # 处理日期时间类型
     elif isinstance(obj, datetime.datetime):
         return obj.strftime("%Y-%m-%d %H:%M:%S")
     elif isinstance(obj, datetime.date):
         return obj.strftime("%Y-%m-%d")
+    # 处理列表和元组
     elif isinstance(obj, (list, tuple)):
         return [_make_json_serializable(item) for item in obj]
+    # 处理字典
     elif isinstance(obj, dict):
         return {key: _make_json_serializable(value) for key, value in obj.items()}
+    # 处理pandas类型
     elif isinstance(obj, (pd.Timestamp, pd.Timedelta)):
         return str(obj)
+    elif isinstance(obj, pd.Series):
+        return _make_json_serializable(obj.tolist())
+    elif isinstance(obj, pd.DataFrame):
+        return _make_json_serializable(obj.to_dict(orient='records'))
+    # 处理numpy类型
     elif isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
         return float(obj)
     elif isinstance(obj, np.ndarray):
-        return obj.tolist()
+        return _make_json_serializable(obj.tolist())
+    # 处理其他类型
     else:
-        # 尝试转换为字符串，如果失败则返回None
+        # 尝试转换为字符串
         try:
             return str(obj)
         except:
+            # 如果无法转换，返回None
             return None
 
 def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], dates: List[str]) -> Dict[str, Any]:
@@ -455,6 +467,26 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
         
         # 确保整个summary_data都是可序列化的
         serializable_summary_data = _make_json_serializable(summary_data)
+        
+        # 额外检查：尝试序列化以捕获任何错误
+        try:
+            test_json = json.dumps(serializable_summary_data, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"JSON序列化测试失败: {e}")
+            # 如果失败，创建一个简化的版本
+            simplified_data = {
+                "id": strategy_id,
+                "name": strategy_id,
+                "description": f"基于用户对{len(symbols)}只股票的案例分析和实际数据总结的交易规律",
+                "stock_symbols": symbols,
+                "stock_dates": dates,
+                "user_input": user_input,
+                "summary": summary_content,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "type": "pattern_summary_few_shot",
+                "note": "原始数据包含非JSON可序列化对象，已简化"
+            }
+            serializable_summary_data = _make_json_serializable(simplified_data)
         
         with open(summary_file, 'w', encoding='utf-8') as f:
             json.dump(serializable_summary_data, f, ensure_ascii=False, indent=2)
