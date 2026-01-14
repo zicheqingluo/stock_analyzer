@@ -75,12 +75,122 @@ def view_current_strategies() -> List[Dict[str, Any]]:
                         "description": summary_data.get("description", "交易规律总结"),
                         "created_at": summary_data.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                         "content": summary_data.get("summary", ""),
-                        "type": "pattern_summary"
+                        "type": "pattern_summary",
+                        "file_path": filepath,
+                        "id": summary_data.get("id", "")
                     })
                 except:
                     pass
     
     return strategies
+
+def delete_strategy(strategy_name: str) -> bool:
+    """删除策略或规律总结"""
+    # 首先检查是否是规律总结
+    summary_dir = "pattern_summaries"
+    if os.path.exists(summary_dir):
+        for filename in os.listdir(summary_dir):
+            if filename.endswith('.json') and filename.startswith('summary_'):
+                filepath = os.path.join(summary_dir, filename)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        summary_data = json.load(f)
+                    if summary_data.get("name") == strategy_name or summary_data.get("id") == strategy_name:
+                        os.remove(filepath)
+                        print(f"已删除规律总结: {strategy_name}")
+                        
+                        # 同时删除对应的txt文件
+                        txt_file = os.path.join(summary_dir, "latest_pattern_summary.txt")
+                        if os.path.exists(txt_file):
+                            # 检查是否是当前删除的规律
+                            try:
+                                with open(txt_file, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                # 简单检查：如果内容匹配，删除txt文件
+                                if summary_data.get("summary", "") in content:
+                                    os.remove(txt_file)
+                                    print(f"已删除对应的txt文件")
+                            except:
+                                pass
+                        return True
+                except:
+                    continue
+    
+    # 如果不是规律总结，尝试从策略文件中删除
+    strategies = load_strategies()
+    new_strategies = [s for s in strategies if s.get("name") != strategy_name]
+    
+    if len(new_strategies) < len(strategies):
+        save_strategies(new_strategies)
+        print(f"已删除策略: {strategy_name}")
+        return True
+    
+    print(f"未找到策略或规律总结: {strategy_name}")
+    return False
+
+def rename_strategy(old_name: str, new_name: str) -> bool:
+    """重命名策略或规律总结"""
+    # 首先检查是否是规律总结
+    summary_dir = "pattern_summaries"
+    if os.path.exists(summary_dir):
+        for filename in os.listdir(summary_dir):
+            if filename.endswith('.json') and filename.startswith('summary_'):
+                filepath = os.path.join(summary_dir, filename)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        summary_data = json.load(f)
+                    
+                    if summary_data.get("name") == old_name or summary_data.get("id") == old_name:
+                        summary_data["name"] = new_name
+                        # 更新文件名
+                        new_filename = f"summary_{new_name}.json"
+                        new_filepath = os.path.join(summary_dir, new_filename)
+                        
+                        with open(new_filepath, 'w', encoding='utf-8') as f:
+                            json.dump(summary_data, f, ensure_ascii=False, indent=2)
+                        
+                        # 删除旧文件
+                        os.remove(filepath)
+                        print(f"已重命名规律总结: {old_name} -> {new_name}")
+                        return True
+                except:
+                    continue
+    
+    # 如果不是规律总结，尝试从策略文件中重命名
+    strategies = load_strategies()
+    for strategy in strategies:
+        if strategy.get("name") == old_name:
+            strategy["name"] = new_name
+            save_strategies(strategies)
+            print(f"已重命名策略: {old_name} -> {new_name}")
+            return True
+    
+    print(f"未找到策略或规律总结: {old_name}")
+    return False
+
+def get_strategy_details(strategy_name: str) -> Optional[Dict[str, Any]]:
+    """获取策略或规律总结的详细信息"""
+    # 首先检查是否是规律总结
+    summary_dir = "pattern_summaries"
+    if os.path.exists(summary_dir):
+        for filename in os.listdir(summary_dir):
+            if filename.endswith('.json') and filename.startswith('summary_'):
+                filepath = os.path.join(summary_dir, filename)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        summary_data = json.load(f)
+                    if summary_data.get("name") == strategy_name or summary_data.get("id") == strategy_name:
+                        return summary_data
+                except:
+                    continue
+    
+    # 如果不是规律总结，尝试从策略文件中查找
+    strategies = load_strategies()
+    for strategy in strategies:
+        if strategy.get("name") == strategy_name:
+            return strategy
+    
+    return None
 
 import re
 from typing import List, Dict, Any, Optional
@@ -182,7 +292,7 @@ def _make_json_serializable(obj):
             # 如果无法转换，返回None
             return None
 
-def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], dates: List[str]) -> Dict[str, Any]:
+def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], dates: List[str], custom_name: str = None) -> Dict[str, Any]:
     """
     基于股票代码、日期和用户输入总结规律
     
@@ -394,11 +504,14 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
         summary_content = response
         print(f"✓ 大模型调用成功，响应长度: {len(summary_content)} 字符")
         
-        # 生成策略ID
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M")
-        strategy_id = f"规律总结-{'-'.join(symbols[:3])}-{timestamp}"
-        if len(symbols) > 3:
-            strategy_id = f"规律总结-多股票-{timestamp}"
+        # 确定策略ID
+        if custom_name:
+            strategy_id = custom_name
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+            strategy_id = f"规律总结-{'-'.join(symbols[:3])}-{timestamp}"
+            if len(symbols) > 3:
+                strategy_id = f"规律总结-多股票-{timestamp}"
         
         # 保存总结到专门目录
         summary_dir = "pattern_summaries"

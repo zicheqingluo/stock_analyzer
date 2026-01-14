@@ -459,10 +459,18 @@ def run_quant_strategy():
                     # 获取数据并总结规律，只使用第一个日期
                     # 因为所有分析都是同一时间进行的
                     date_to_use = extracted_dates[0] if extracted_dates else None
+                    
+                    # 询问用户输入规律名称
+                    print(f"\n【请输入规律名称】")
+                    print(f"按回车使用自动生成名称，或输入自定义名称:")
+                    custom_name = input("规律名称: ").strip()
+                    
+                    # 调用函数，传递自定义名称
                     new_strategy = quant_module.upgrade_strategy_with_stock_and_dates(
                         cleaned_input, 
                         extracted_symbols, 
-                        [date_to_use] if date_to_use else []
+                        [date_to_use] if date_to_use else [],
+                        custom_name if custom_name else None
                     )
                     
                     if "error" in new_strategy:
@@ -502,11 +510,96 @@ def run_quant_strategy():
                         print(f"{i}. {strategy.get('name', '未命名')}")
                         print(f"   描述: {strategy.get('description', '无描述')}")
                         print(f"   创建时间: {strategy.get('created_at', '未知')}")
+                        print(f"   类型: {strategy.get('type', '策略')}")
                         print()
+                    
+                    # 提供操作选项
+                    print("\n请选择操作:")
+                    print("1. 查看详细内容")
+                    print("2. 删除策略/规律")
+                    print("3. 重命名策略/规律")
+                    print("4. 返回上一级")
+                    
+                    sub_choice = input("请输入选项 (1-4): ").strip()
+                    
+                    if sub_choice == "1":
+                        # 查看详细内容
+                        try:
+                            idx = int(input(f"请输入要查看的策略序号 (1-{len(strategies)}): ").strip()) - 1
+                            if 0 <= idx < len(strategies):
+                                strategy = strategies[idx]
+                                print(f"\n【{strategy.get('name', '未命名')}】")
+                                print(f"描述: {strategy.get('description', '无描述')}")
+                                print(f"创建时间: {strategy.get('created_at', '未知')}")
+                                print(f"类型: {strategy.get('type', '策略')}")
+                                print("\n【内容】")
+                                content = strategy.get('content', '')
+                                # 显示完整内容
+                                print(content)
+                                print("\n" + "="*60)
+                                
+                                # 询问是否继续查看
+                                input("\n按回车键继续...")
+                            else:
+                                print("序号无效")
+                        except ValueError:
+                            print("请输入有效的数字")
+                    
+                    elif sub_choice == "2":
+                        # 删除策略/规律
+                        try:
+                            idx = int(input(f"请输入要删除的策略序号 (1-{len(strategies)}): ").strip()) - 1
+                            if 0 <= idx < len(strategies):
+                                strategy = strategies[idx]
+                                strategy_name = strategy.get('name', '')
+                                confirm = input(f"确认删除 '{strategy_name}'？(y/n): ").strip().lower()
+                                if confirm == 'y':
+                                    success = quant_module.delete_strategy(strategy_name)
+                                    if success:
+                                        print(f"已成功删除: {strategy_name}")
+                                    else:
+                                        print(f"删除失败: {strategy_name}")
+                                else:
+                                    print("取消删除")
+                            else:
+                                print("序号无效")
+                        except ValueError:
+                            print("请输入有效的数字")
+                    
+                    elif sub_choice == "3":
+                        # 重命名策略/规律
+                        try:
+                            idx = int(input(f"请输入要重命名的策略序号 (1-{len(strategies)}): ").strip()) - 1
+                            if 0 <= idx < len(strategies):
+                                strategy = strategies[idx]
+                                old_name = strategy.get('name', '')
+                                print(f"当前名称: {old_name}")
+                                new_name = input("请输入新名称: ").strip()
+                                if new_name:
+                                    success = quant_module.rename_strategy(old_name, new_name)
+                                    if success:
+                                        print(f"已成功重命名: {old_name} -> {new_name}")
+                                    else:
+                                        print(f"重命名失败")
+                                else:
+                                    print("新名称不能为空")
+                            else:
+                                print("序号无效")
+                        except ValueError:
+                            print("请输入有效的数字")
+                    
+                    elif sub_choice == "4":
+                        # 返回上一级
+                        pass
+                    else:
+                        print("无效选项")
+                        
                 else:
                     print("暂无历史记录")
-            except:
-                print("查看历史记录失败")
+            except Exception as e:
+                print(f"查看历史记录失败: {e}")
+                import traceback
+                traceback.print_exc()
                 
     except Exception as e:
         print(f"功能执行失败: {e}")
