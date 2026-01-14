@@ -156,7 +156,7 @@ def run_llm_analysis():
             print("✓ 将使用最新规律（默认）")
     
     # 获取股票名称并转换为代码
-    from stock_analysis_ui import get_stock_name_input
+    from stock_ui_input import get_stock_name_input
     code = get_stock_name_input()
     if not code:
         print("操作已取消")
