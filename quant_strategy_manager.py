@@ -325,14 +325,31 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
 - [风险2]"""
     
     print(f"\n【正在调用大模型进行few-shot学习总结...】")
-    
+        
     # 调用LLM生成策略
     try:
-        llm_core = StockLLMCore(llm_provider="deepseek")
-        response = llm_core._generate_quant_strategy(prompt)
-        
+        # 检查API密钥是否设置
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            print("错误: 未设置DEEPSEEK_API_KEY环境变量")
+            print("请设置环境变量: export DEEPSEEK_API_KEY='your-api-key-here'")
+            print("您可以从 https://platform.deepseek.com/api_keys 获取API密钥")
+            return {"error": "未设置API密钥，请设置DEEPSEEK_API_KEY环境变量"}
+            
+        print(f"正在初始化DeepSeek客户端...")
+        # 确保传入api_key参数
+        llm_core = StockLLMCore(llm_provider="deepseek", api_key=api_key, base_url="https://api.deepseek.com")
+        # 使用正确的API调用方法，而不是已弃用的_generate_quant_strategy
+        print("正在调用DeepSeek API...")
+        response = llm_core.call_llm(prompt, use_local=False)
+            
+        if not response:
+            print("警告: LLM返回空响应")
+            response = "LLM返回空响应，请重试"
+            
         # 解析响应
         summary_content = response
+        print(f"✓ 大模型调用成功，响应长度: {len(summary_content)} 字符")
         
         # 生成策略ID
         timestamp = datetime.now().strftime("%Y%m%d-%H%M")
