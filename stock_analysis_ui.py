@@ -590,7 +590,7 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
         spec.loader.exec_module(llm_module)
             
         # 使用专门的量化策略生成方法
-        new_strategy = llm_module.llm_analyzer.generate_quant_strategy(user_input, existing_strategies)
+        new_strategy = llm_module.llm_analyzer.generate_quant_strategy(user_input_clean, existing_strategies)
             
         # 如果生成失败，使用备用方法
         if new_strategy.get("source") == "error_fallback":
@@ -600,10 +600,10 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
                 
             new_strategy = {
                 "name": f"优化策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
-                "description": f"基于用户需求生成的策略: {user_input[:50]}...",
+                "description": f"基于用户需求生成的策略: {user_input_clean[:50]}...",
                 "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "content": strategy_content,
-                "user_input": user_input,
+                "user_input": user_input_clean,
                 "source": "llm_generated"
             }
         
@@ -618,11 +618,11 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
         # 如果LLM调用失败，创建一个简单的策略
         new_strategy = {
             "name": f"手动策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
-            "description": f"基于用户需求生成的策略: {user_input[:50]}...",
+            "description": f"基于用户需求生成的策略: {user_input_clean[:50]}...",
             "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "content": f"""
 策略名称：基于用户输入的策略
-用户需求：{user_input}
+用户需求：{user_input_clean}
 
 策略逻辑：
 1. 结合用户需求与现有策略框架
@@ -631,7 +631,7 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
 
 具体规则待进一步细化。
             """,
-            "user_input": user_input,
+            "user_input": user_input_clean,
             "source": "manual_fallback"
         }
         
