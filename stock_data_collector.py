@@ -19,13 +19,14 @@ class StockDataCollector:
         """初始化"""
         pass
     
-    def collect_stock_data(self, symbol: str, days_back: int = 5) -> Dict[str, Any]:
+    def collect_stock_data(self, symbol: str, days_back: int = 5, target_date: str = None) -> Dict[str, Any]:
         """
         收集股票的详细数据
         
         Args:
             symbol: 股票代码
             days_back: 回溯天数
+            target_date: 目标分析日期（格式：YYYYMMDD），如果为None则使用当前日期
             
         Returns:
             股票数据字典
@@ -37,11 +38,11 @@ class StockDataCollector:
             # 1. 获取股票基本信息
             stock_name = self._get_stock_name(symbol_clean)
             
-            # 2. 获取历史日线数据
-            history_data = self._get_detailed_history(symbol_clean, days_back)
+            # 2. 获取历史日线数据（支持指定日期）
+            history_data = self._get_detailed_history(symbol_clean, days_back, target_date)
             
-            # 3. 获取涨停板池数据
-            limit_up_data = self._get_limit_up_data(symbol_clean)
+            # 3. 获取涨停板池数据（支持指定日期）
+            limit_up_data = self._get_limit_up_data(symbol_clean, target_date)
             
             # 4. 计算关键指标
             key_metrics = self._calculate_key_metrics(history_data, limit_up_data)
@@ -49,10 +50,21 @@ class StockDataCollector:
             # 5. 生成历史数据摘要
             history_summary = self._generate_history_summary(history_data)
             
+            # 确定分析日期
+            if target_date:
+                # 将YYYYMMDD转换为YYYY-MM-DD
+                try:
+                    analysis_date = f"{target_date[:4]}-{target_date[4:6]}-{target_date[6:]}"
+                except:
+                    analysis_date = datetime.now().strftime('%Y-%m-%d')
+            else:
+                analysis_date = datetime.now().strftime('%Y-%m-%d')
+            
             return {
                 "symbol": symbol_clean,
                 "name": stock_name,
-                "analysis_date": datetime.now().strftime('%Y-%m-%d'),
+                "analysis_date": analysis_date,
+                "target_date": target_date,
                 "history_data": history_data,
                 "limit_up_data": limit_up_data,
                 "key_metrics": key_metrics,
@@ -75,16 +87,28 @@ class StockDataCollector:
         except:
             return symbol
     
-    def _get_detailed_history(self, symbol: str, days_back: int) -> List[Dict[str, Any]]:
+    def _get_detailed_history(self, symbol: str, days_back: int, target_date: str = None) -> List[Dict[str, Any]]:
         """
         获取详细的日线历史数据
+        
+        Args:
+            symbol: 股票代码
+            days_back: 回溯天数
+            target_date: 目标日期（格式：YYYYMMDD），如果为None则使用当前日期
         """
         try:
-            # 获取当前日期
-            query_date = datetime.now()
+            # 确定查询日期
+            if target_date:
+                # 将字符串转换为datetime对象
+                try:
+                    query_date = datetime.strptime(target_date, '%Y%m%d')
+                except:
+                    query_date = datetime.now()
+            else:
+                query_date = datetime.now()
             
-            # 计算开始日期
-            start_date = query_date - timedelta(days=days_back * 2)
+            # 计算开始日期（获取足够多的数据，然后筛选）
+            start_date = query_date - timedelta(days=days_back * 3)
             
             # 获取日线数据
             df = ak.stock_zh_a_hist(
@@ -117,7 +141,10 @@ class StockDataCollector:
             # 按日期排序（最近的在前）
             df = df.sort_values('date', ascending=False)
             
-            # 只保留最近days_back天的数据
+            # 按日期排序（最近的在前）
+            df = df.sort_values('date', ascending=False)
+            
+            # 只保留最近days_back天的数据（相对于目标日期）
             df = df.head(days_back)
             
             # 转换为字典列表
@@ -172,14 +199,21 @@ class StockDataCollector:
             print(f"获取详细历史数据失败: {e}")
             return []
     
-    def _get_limit_up_data(self, symbol: str) -> Dict[str, Any]:
+    def _get_limit_up_data(self, symbol: str, target_date: str = None) -> Dict[str, Any]:
         """
         获取涨停板池相关数据
+        
+        Args:
+            symbol: 股票代码
+            target_date: 目标日期（格式：YYYYMMDD），如果为None则使用当前日期
         """
         try:
-            current_date = datetime.now().strftime('%Y%m%d')
+            if target_date:
+                current_date = target_date
+            else:
+                current_date = datetime.now().strftime('%Y%m%d')
             
-            # 获取今天涨停板池数据
+            # 获取指定日期的涨停板池数据
             df_today = ak.stock_zt_pool_em(date=current_date)
             
             result = {
