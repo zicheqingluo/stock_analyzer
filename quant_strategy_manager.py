@@ -407,10 +407,34 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
             # 如果data中有关键指标，也保存
             data = stock.get("data", {})
             if isinstance(data, dict):
-                # 只保存关键指标，避免复杂对象
-                key_metrics = data.get("key_metrics", {})
-                if key_metrics:
-                    serializable_stock["key_metrics"] = _make_json_serializable(key_metrics)
+                # 确保整个data字典都是可序列化的
+                serializable_data = {}
+                for key, value in data.items():
+                    if key == "key_metrics":
+                        # 特别处理key_metrics
+                        serializable_data[key] = _make_json_serializable(value)
+                    elif key == "history_data":
+                        # 历史数据可能包含复杂对象，只保存摘要
+                        if isinstance(value, list) and len(value) > 0:
+                            # 只保存最近几天的摘要信息
+                            serializable_data[key] = [
+                                {
+                                    "date": item.get("date", ""),
+                                    "pct_change": item.get("pct_change", 0),
+                                    "is_limit_up": item.get("is_limit_up", False),
+                                    "limit_type": item.get("limit_type", "")
+                                }
+                                for item in value[:3]  # 只取最近3天
+                            ]
+                        else:
+                            serializable_data[key] = _make_json_serializable(value)
+                    else:
+                        serializable_data[key] = _make_json_serializable(value)
+                
+                # 保存处理后的数据
+                if serializable_data:
+                    serializable_stock["data"] = serializable_data
+                
                 # 保存股票名称（如果data中有）
                 if "name" in data:
                     serializable_stock["name"] = data.get("name", serializable_stock["name"])
@@ -429,8 +453,11 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
             "type": "pattern_summary_few_shot"
         }
         
+        # 确保整个summary_data都是可序列化的
+        serializable_summary_data = _make_json_serializable(summary_data)
+        
         with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary_data, f, ensure_ascii=False, indent=2)
+            json.dump(serializable_summary_data, f, ensure_ascii=False, indent=2)
         
         print(f"✓ 规律总结已保存到: {summary_file}")
         
