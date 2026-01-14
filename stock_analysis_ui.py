@@ -248,7 +248,20 @@ def get_menu_choice() -> str:
         print(f"3. LLM智能分析 (基于大模型的智能分析)")
         print(f"4. 退出")
         
-        choice = input("\n请输入选项: ").strip()
+        try:
+            choice = input("\n请输入选项: ").strip()
+        except EOFError:
+            # 处理Ctrl+D/Ctrl+Z
+            print("\n检测到输入结束，退出程序")
+            return "4"
+        
+        # 只取第一行，并移除可能的空白字符
+        if "\n" in choice:
+            choice = choice.split("\n")[0].strip()
+        
+        # 只取第一个字符（防止用户输入多行文本）
+        if choice:
+            choice = choice[0]
         
         if choice in ["1", "2", "3", "4"]:
             return choice
@@ -810,12 +823,8 @@ def main_ui(stock_monitor, stock_data_fetcher):
         
         elif choice == "4":
             print("感谢使用，再见！")
-            # 先跳出循环
-            break
-    
-    # 退出程序
-    import sys
-    sys.exit(0)
+            # 直接退出函数，让调用者处理退出
+            return
 
 
 if __name__ == "__main__":
@@ -913,3 +922,7 @@ if __name__ == "__main__":
             elif choice == "4":
                 print("感谢使用，再见！")
                 break
+    
+    # 程序正常退出
+    import sys
+    sys.exit(0)

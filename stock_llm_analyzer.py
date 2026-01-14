@@ -575,12 +575,23 @@ class StockLLMAnalyzer:
         symbol = ""
         for line in lines:
             if "股票代码:" in line:
-                symbol = line.split(":")[1].strip()
+                parts = line.split(":")
+                if len(parts) > 1:
+                    symbol = parts[1].strip()
                 break
+        
+        # 如果symbol为空，尝试其他方式查找
+        if not symbol:
+            for line in lines:
+                if "symbol" in line.lower() and ":" in line:
+                    parts = line.split(":")
+                    if len(parts) > 1:
+                        symbol = parts[1].strip()
+                        break
         
         # 基于规则的简单分析
         analysis = f"""
-基于数据对股票 {symbol} 的分析：
+基于数据对股票 {symbol if symbol else '未知'} 的分析：
 
 【综合结论】
 该股票近期表现强势，符合缩量走强模式。
