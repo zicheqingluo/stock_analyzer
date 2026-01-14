@@ -773,7 +773,7 @@ def run_llm_analysis():
     # 显示功能选项
     print(f"\n当前使用: {'本地模拟' if use_local else llm_provider}")
     print("\n请选择分析模式:")
-    print("1. 标准分析（仅使用现有经验规则）")
+    print("1. 标准分析（使用API进行智能分析）")
     print("2. 分析并优化提示词（将本次分析加入案例库）")
     print("3. 仅收集数据（不进行LLM分析）")
     
