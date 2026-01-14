@@ -40,18 +40,22 @@ except ImportError:
 class StockLLMAnalyzer:
     """股票LLM智能分析器（精简版）"""
     
-    def __init__(self, llm_provider: str = "local", api_key: str = None, base_url: str = None):
+    def __init__(self, llm_provider: str = "deepseek", api_key: str = None, base_url: str = None):
         """
         初始化
         
         Args:
-            llm_provider: LLM提供商
+            llm_provider: LLM提供商（deepseek或openai）
             api_key: API密钥
             base_url: API基础URL
         """
         self.llm_provider = llm_provider
         self.api_key = api_key
         self.base_url = base_url
+        
+        # 检查API密钥
+        if not api_key and llm_provider != "local":
+            print(f"警告: 未提供{llm_provider} API密钥")
         
         # 初始化核心模块
         self.llm_core = StockLLMCore(llm_provider, api_key, base_url) if StockLLMCore else None
@@ -143,7 +147,7 @@ class StockLLMAnalyzer:
         
         Args:
             symbol: 股票代码
-            use_local: 是否使用本地模拟
+            use_local: 是否使用本地模拟（已弃用，保留参数以兼容）
             update_prompt: 是否更新提示词
             
         Returns:
@@ -371,9 +375,10 @@ def create_llm_analyzer():
 
 llm_analyzer = create_llm_analyzer()
 
-def analyze_stock_with_llm(symbol: str, use_local: bool = True) -> Dict[str, Any]:
+def analyze_stock_with_llm(symbol: str, use_local: bool = False) -> Dict[str, Any]:
     """使用LLM分析股票的快捷函数"""
-    return llm_analyzer.analyze_with_llm(symbol, use_local)
+    # 忽略use_local参数，始终使用API
+    return llm_analyzer.analyze_with_llm(symbol, use_local=False)
 
 def collect_stock_data(symbol: str) -> Dict[str, Any]:
     """收集股票数据的快捷函数"""

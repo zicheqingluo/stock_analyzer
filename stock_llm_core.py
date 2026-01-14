@@ -80,89 +80,19 @@ class StockLLMCore:
     
     def _generate_quant_strategy(self, prompt: str) -> str:
         """
-        生成量化策略
+        生成量化策略（已弃用，仅用于兼容）
         """
-        # 解析用户需求
-        user_input = ""
-        for line in prompt.split('\n'):
-            if "用户的新需求：" in line:
-                cleaned_line = line.encode('utf-8', 'ignore').decode('utf-8')
-                parts = cleaned_line.split("：")
-                if len(parts) > 1:
-                    user_input = parts[1].strip()
-                break
-            elif "用户需求：" in line:
-                cleaned_line = line.encode('utf-8', 'ignore').decode('utf-8')
-                parts = cleaned_line.split("：")
-                if len(parts) > 1:
-                    user_input = parts[1].strip()
-                break
-        
-        # 基于用户需求生成策略
-        strategy_name = "智能量化策略"
-        if "涨停" in user_input:
-            strategy_name = "涨停板优化策略"
-        elif "连板" in user_input:
-            strategy_name = "连板股策略"
-        elif "回调" in user_input:
-            strategy_name = "回调买入策略"
-        elif "风险" in user_input:
-            strategy_name = "风险控制策略"
-        
-        strategy = f"""
-【策略名称】
-{strategy_name}
-
-【策略描述】
-基于用户需求"{user_input}"生成的量化交易策略，专注于中国A股市场的短线交易机会。
-
-【核心逻辑】
-1. 结合技术指标与市场情绪进行综合判断
-2. 利用涨停板、成交量、换手率等多维度数据
-3. 动态调整买入卖出条件以适应市场变化
-
-【买入条件】
-1. 股票当日涨停或接近涨停（涨幅>9.5%）
-2. 成交量较前一日放大1.5倍以上
-3. 换手率在5%-20%之间，显示活跃但不过度
-4. 股价突破关键压力位或创近期新高
-5. 市场整体情绪积极，板块有联动效应
-
-【卖出条件】
-1. 止损条件：股价跌破买入价5%立即止损
-2. 止盈条件：盈利达到15%考虑部分止盈，20%全部止盈
-3. 时间止损：持有超过3个交易日未达目标考虑减仓
-4. 技术止损：出现放量滞涨或跌破重要均线
-
-【风险控制】
-1. 单只股票仓位不超过总资金的20%
-2. 每日最大亏损不超过总资金的2%
-3. 避免在重大利空消息发布时交易
-4. 关注市场整体风险，大盘下跌时降低仓位
-5. 设置硬性止损线，严格执行纪律
-
-【适用市场环境】
-1. 适用于震荡市和牛市初期
-2. 在单边下跌市中应谨慎使用或暂停
-3. 最适合中小盘活跃股
-4. 需要实时数据支持和快速执行能力
-
-【策略优化建议】
-1. 定期回测策略表现，根据市场变化调整参数
-2. 结合基本面分析提高胜率
-3. 关注政策面和资金面变化
-4. 建立策略组合，分散风险
-"""
-        
-        return strategy
+        print("警告: _generate_quant_strategy 方法已弃用，请使用API")
+        raise RuntimeError("本地模拟功能已移除，请使用API调用")
     
     def _call_deepseek_api(self, prompt: str) -> str:
         """
         调用DeepSeek API
         """
         if not self.deepseek_client:
-            print("DeepSeek客户端未初始化，使用本地模拟")
-            return self._call_local_llm(prompt)
+            print("错误: DeepSeek客户端未初始化")
+            print("请检查API密钥设置")
+            raise RuntimeError("DeepSeek客户端未初始化，请检查API密钥")
         
         try:
             print("正在调用DeepSeek API...")
@@ -194,8 +124,8 @@ class StockLLMCore:
                 print("DeepSeek API调用成功")
                 return content
             else:
-                print("DeepSeek API返回空响应")
-                return self._call_local_llm(prompt)
+                print("错误: DeepSeek API返回空响应")
+                raise RuntimeError("DeepSeek API返回空响应")
                 
         except Exception as e:
             print(f"DeepSeek API调用失败: {e}")
@@ -237,8 +167,8 @@ class StockLLMCore:
                 print("OpenAI API调用成功")
                 return content
             else:
-                print("OpenAI API返回空响应")
-                return self._call_local_llm(prompt)
+                print("错误: OpenAI API返回空响应")
+                raise RuntimeError("OpenAI API返回空响应")
                 
         except Exception as e:
             print(f"OpenAI API调用失败: {e}")
