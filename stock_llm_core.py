@@ -52,63 +52,31 @@ class StockLLMCore:
         
         Args:
             prompt: 提示词
-            use_local: 是否使用本地模拟
+            use_local: 是否使用本地模拟（已弃用，保留参数以兼容）
             
         Returns:
             LLM响应
         """
-        if use_local or self.llm_provider == "local":
-            return self._call_local_llm(prompt)
-        elif self.llm_provider == "deepseek":
+        if use_local:
+            print("错误: 本地模拟功能已移除，请使用API")
+            raise RuntimeError("本地模拟功能已移除，请设置API密钥")
+        
+        if self.llm_provider == "deepseek":
             return self._call_deepseek_api(prompt)
         elif self.llm_provider == "openai":
             return self._call_openai_api(prompt)
         else:
-            print(f"警告: 不支持的LLM提供商: {self.llm_provider}，使用本地模拟")
-            return self._call_local_llm(prompt)
+            print(f"错误: 不支持的LLM提供商: {self.llm_provider}")
+            print("支持的提供商: deepseek, openai")
+            raise ValueError(f"不支持的LLM提供商: {self.llm_provider}")
     
     def _call_local_llm(self, prompt: str) -> str:
         """
-        本地模拟LLM调用
+        本地模拟LLM调用（已弃用）
         """
-        # 检查是否是量化策略生成请求
-        if "量化策略" in prompt or "交易策略" in prompt or "买入条件" in prompt:
-            return self._generate_quant_strategy(prompt)
-        
-        # 解析prompt中的关键信息
-        lines = prompt.split('\n')
-        symbol = ""
-        for line in lines:
-            if "股票代码:" in line:
-                parts = line.split(":")
-                if len(parts) > 1:
-                    symbol = parts[1].strip()
-                break
-        
-        # 基于规则的简单分析
-        analysis = f"""
-基于数据对股票 {symbol if symbol else '未知'} 的分析：
-
-【综合结论】
-该股票近期表现强势，符合缩量走强模式。
-
-【详细分析】
-1. 换手率分析：换手率逐步降低，显示筹码锁定良好
-2. 连板类型：近期有一字板，表现极强
-3. 量价关系：符合爆量->缩量->缩量的标准走强模式
-4. 强弱转换：连续涨停，无炸板，表现强势
-
-【明日预期】
-大概率继续走强，可能继续一字板或大高开快速涨停
-
-【操作建议】
-如果持有可继续持有，如果未持有可考虑在合适时机参与
-
-【风险提示】
-注意市场整体风险，避免追高
-"""
-        
-        return analysis
+        print("错误: 本地模拟功能已移除")
+        print("请设置API密钥以使用LLM功能")
+        raise RuntimeError("本地模拟功能已移除，请使用API调用")
     
     def _generate_quant_strategy(self, prompt: str) -> str:
         """

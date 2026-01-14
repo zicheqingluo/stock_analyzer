@@ -84,16 +84,14 @@ def upgrade_strategy_with_stock(stock_symbol: str, user_input: str) -> Dict[str,
             print("错误: 未设置API密钥")
             print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
             print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
-            # 创建备用策略
-            strategy = create_fallback_strategy(stock_symbol, user_input)
-        else:
-            # 生成量化策略
-            strategy = generate_quant_strategy(stock_symbol, user_input)
+            raise RuntimeError("API密钥未设置")
+        
+        # 生成量化策略
+        strategy = generate_quant_strategy(stock_symbol, user_input)
         
         if "error" in strategy:
             print(f"生成策略失败: {strategy['error']}")
-            # 创建备用策略
-            strategy = create_fallback_strategy(stock_symbol, user_input)
+            raise RuntimeError(f"生成策略失败: {strategy['error']}")
         
         # 保存到策略列表
         existing_strategies = load_strategies()
@@ -104,8 +102,7 @@ def upgrade_strategy_with_stock(stock_symbol: str, user_input: str) -> Dict[str,
         
     except Exception as e:
         print(f"升级策略失败: {e}")
-        # 创建备用策略
-        return create_fallback_strategy(stock_symbol, user_input)
+        raise
 
 def create_fallback_strategy(stock_symbol: str, user_input: str) -> Dict[str, Any]:
     """创建备用策略"""
@@ -144,7 +141,18 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
     """
     # 默认使用一个测试股票
     default_stock = "000001"  # 平安银行
-    return upgrade_strategy_with_stock(default_stock, user_input)
+    try:
+        return upgrade_strategy_with_stock(default_stock, user_input)
+    except Exception as e:
+        print(f"升级策略失败: {e}")
+        # 返回一个简单的错误策略
+        return {
+            "name": f"错误策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
+            "description": f"策略生成失败: {str(e)}",
+            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "content": f"策略生成失败，请检查API密钥设置。错误信息: {str(e)}",
+            "source": "error"
+        }
 
 if __name__ == "__main__":
     # 测试代码

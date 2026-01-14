@@ -169,7 +169,8 @@ class StockLLMAnalyzer:
             if not self.llm_core:
                 return {"error": "LLM核心模块未初始化"}
             
-            llm_response = self.llm_core.call_llm(prompt, use_local)
+            # 调用LLM API，不使用本地模拟
+            llm_response = self.llm_core.call_llm(prompt, use_local=False)
             
             # 4. 解析结果
             analysis_result = self.llm_core.parse_llm_response(llm_response)
@@ -253,7 +254,7 @@ class StockLLMAnalyzer:
             
             # 3. 调用LLM生成策略
             print(f"【量化策略】调用LLM生成策略...")
-            # 不再使用本地模拟，始终使用API
+            # 调用LLM API，不使用本地模拟
             llm_response = self.llm_core.call_llm(prompt, use_local=False)
             
             # 4. 创建策略对象
@@ -338,18 +339,25 @@ def create_llm_analyzer():
     """创建LLM分析器实例"""
     
     # 从环境变量获取配置
-    llm_provider = os.environ.get("LLM_PROVIDER", "local").lower()
+    llm_provider = os.environ.get("LLM_PROVIDER", "deepseek").lower()
     api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
     base_url = os.environ.get("LLM_BASE_URL")
     
-    if llm_provider == "deepseek" and api_key:
+    # 检查API密钥
+    if not api_key:
+        print("错误: 未设置API密钥")
+        print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
+        print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
+        sys.exit(1)
+    
+    if llm_provider == "deepseek":
         print(f"使用DeepSeek作为LLM提供商")
         return StockLLMAnalyzer(
             llm_provider="deepseek",
             api_key=api_key,
             base_url=base_url or "https://api.deepseek.com"
         )
-    elif llm_provider == "openai" and api_key:
+    elif llm_provider == "openai":
         print(f"使用OpenAI作为LLM提供商")
         return StockLLMAnalyzer(
             llm_provider="openai",
@@ -357,8 +365,9 @@ def create_llm_analyzer():
             base_url=base_url or "https://api.openai.com/v1"
         )
     else:
-        print(f"使用本地模拟LLM")
-        return StockLLMAnalyzer(llm_provider="local")
+        print(f"错误: 不支持的LLM提供商: {llm_provider}")
+        print("支持的提供商: deepseek, openai")
+        sys.exit(1)
 
 llm_analyzer = create_llm_analyzer()
 
