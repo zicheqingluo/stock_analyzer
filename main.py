@@ -133,7 +133,15 @@ def analyze_stock_directly(symbol, analysis_type="comprehensive"):
             print("=" * 60)
             
             try:
-                result = llm_module.analyze_stock_with_llm(symbol, use_local=True)
+                # 检查API密钥是否设置
+                api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
+                if not api_key:
+                    print("错误: 未设置API密钥")
+                    print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
+                    print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
+                    return
+                
+                result = llm_module.analyze_stock_with_llm(symbol, use_local=False)
                 
                 if "error" in result:
                     print(f"LLM分析失败: {result['error']}")

@@ -253,7 +253,8 @@ class StockLLMAnalyzer:
             
             # 3. 调用LLM生成策略
             print(f"【量化策略】调用LLM生成策略...")
-            llm_response = self.llm_core.call_llm(prompt, use_local=(self.llm_provider == "local"))
+            # 不再使用本地模拟，始终使用API
+            llm_response = self.llm_core.call_llm(prompt, use_local=False)
             
             # 4. 创建策略对象
             strategy = {
@@ -381,6 +382,14 @@ if __name__ == "__main__":
     # 显示配置信息
     print("\n当前LLM配置:")
     print(f"提供商: {llm_analyzer.llm_provider}")
+    
+    # 检查API密钥
+    api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("错误: 未设置API密钥")
+        print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
+        print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
+        sys.exit(1)
     
     # 测试股票
     test_symbol = "002115"

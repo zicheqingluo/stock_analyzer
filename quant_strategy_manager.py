@@ -78,8 +78,17 @@ def upgrade_strategy_with_stock(stock_symbol: str, user_input: str) -> Dict[str,
         # 使用新的量化策略生成功能
         from stock_llm_analyzer import generate_quant_strategy
         
-        # 生成量化策略
-        strategy = generate_quant_strategy(stock_symbol, user_input)
+        # 检查API密钥是否设置
+        api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            print("错误: 未设置API密钥")
+            print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
+            print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
+            # 创建备用策略
+            strategy = create_fallback_strategy(stock_symbol, user_input)
+        else:
+            # 生成量化策略
+            strategy = generate_quant_strategy(stock_symbol, user_input)
         
         if "error" in strategy:
             print(f"生成策略失败: {strategy['error']}")

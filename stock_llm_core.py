@@ -231,8 +231,8 @@ class StockLLMCore:
                 
         except Exception as e:
             print(f"DeepSeek API调用失败: {e}")
-            print("将使用本地模拟LLM")
-            return self._call_local_llm(prompt)
+            print("错误: API调用失败，请检查网络连接和API密钥")
+            raise RuntimeError(f"DeepSeek API调用失败: {e}")
     
     def _call_openai_api(self, prompt: str) -> str:
         """
@@ -274,8 +274,8 @@ class StockLLMCore:
                 
         except Exception as e:
             print(f"OpenAI API调用失败: {e}")
-            print("将使用本地模拟LLM")
-            return self._call_local_llm(prompt)
+            print("错误: API调用失败，请检查网络连接和API密钥")
+            raise RuntimeError(f"OpenAI API调用失败: {e}")
     
     def parse_llm_response(self, response: str) -> Dict[str, str]:
         """
