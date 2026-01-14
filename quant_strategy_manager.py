@@ -139,6 +139,37 @@ def extract_dates_from_text(text: str) -> List[str]:
     # 如果没有找到日期，返回空列表
     return []
 
+def _make_json_serializable(obj):
+    """将对象转换为JSON可序列化的格式"""
+    import datetime
+    import pandas as pd
+    import numpy as np
+    
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    elif isinstance(obj, datetime.datetime):
+        return obj.strftime("%Y-%m-%d %H:%M:%S")
+    elif isinstance(obj, datetime.date):
+        return obj.strftime("%Y-%m-%d")
+    elif isinstance(obj, (list, tuple)):
+        return [_make_json_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {key: _make_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, (pd.Timestamp, pd.Timedelta)):
+        return str(obj)
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        # 尝试转换为字符串，如果失败则返回None
+        try:
+            return str(obj)
+        except:
+            return None
+
 def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], dates: List[str]) -> Dict[str, Any]:
     """
     基于股票代码、日期和用户输入总结规律
@@ -363,13 +394,35 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
         
         summary_file = os.path.join(summary_dir, f"summary_{strategy_id}.json")
         
+        # 准备要保存的数据，确保所有数据都是JSON可序列化的
+        # 转换stocks_data中的非JSON可序列化对象
+        serializable_stocks_data = []
+        for stock in stocks_data:
+            # 只保存关键信息，避免复杂的数据结构
+            serializable_stock = {
+                "symbol": stock.get("symbol", ""),
+                "name": stock.get("name", ""),
+                "date": stock.get("date", "")
+            }
+            # 如果data中有关键指标，也保存
+            data = stock.get("data", {})
+            if isinstance(data, dict):
+                # 只保存关键指标，避免复杂对象
+                key_metrics = data.get("key_metrics", {})
+                if key_metrics:
+                    serializable_stock["key_metrics"] = _make_json_serializable(key_metrics)
+                # 保存股票名称（如果data中有）
+                if "name" in data:
+                    serializable_stock["name"] = data.get("name", serializable_stock["name"])
+            serializable_stocks_data.append(serializable_stock)
+        
         summary_data = {
             "id": strategy_id,
             "name": strategy_id,
             "description": f"基于用户对{len(symbols)}只股票的案例分析和实际数据总结的交易规律",
             "stock_symbols": symbols,
             "stock_dates": dates,
-            "stocks_data": stocks_data,
+            "stocks_data": serializable_stocks_data,
             "user_input": user_input,
             "summary": summary_content,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
