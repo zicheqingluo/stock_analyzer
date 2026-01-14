@@ -255,6 +255,35 @@ def get_menu_choice() -> str:
         else:
             print("无效选项，请重新输入")
 
+def get_multiline_input(prompt: str, end_marker: str = "END") -> str:
+    """
+    获取多行输入，直到遇到结束标记
+    
+    Args:
+        prompt: 提示信息
+        end_marker: 结束标记（用户输入这个标记表示输入结束）
+    
+    Returns:
+        用户输入的多行文本（不包含结束标记）
+    """
+    print(prompt)
+    print(f"输入完成后，请在新的一行单独输入 '{end_marker}' 并按回车结束输入")
+    print("开始输入:")
+    
+    lines = []
+    while True:
+        try:
+            line = input()
+            if line.strip() == end_marker:
+                break
+            lines.append(line)
+        except EOFError:
+            # 用户按Ctrl+D/Ctrl+Z
+            print(f"\n检测到输入结束")
+            break
+    
+    return "\n".join(lines)
+
 
 # ==================== 主UI模块 ====================
 def run_analysis(stock_monitor, stock_data_fetcher):
@@ -380,8 +409,16 @@ def run_quant_strategy():
         choice = input("请输入选项: ").strip()
         
         if choice == "1":
-            user_input = input("请输入您的策略优化想法: ").strip()
-            if user_input:
+            print("\n请输入您的策略优化想法（支持多行输入）:")
+            print("例如：")
+            print("- 增加对成交量的要求")
+            print("- 优化止损条件")
+            print("- 结合市场情绪指标")
+            print("- 等等...")
+            
+            user_input = get_multiline_input("", "END")
+            
+            if user_input.strip():
                 print("\n正在生成优化策略...")
                 new_strategy = quant_module.upgrade_strategy(user_input)
                 print(f"\n【新生成的策略】")
@@ -496,13 +533,16 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
     """升级优化策略
     
     Args:
-        user_input: 用户输入的优化想法
+        user_input: 用户输入的优化想法（可能包含多行）
         
     Returns:
         新生成的策略
     """
     # 加载现有策略
     existing_strategies = load_strategies()
+    
+    # 清理用户输入，移除可能的空白行
+    user_input_clean = "\n".join([line.strip() for line in user_input.split("\n") if line.strip()])
     
     # 构建更专业的量化策略提示词
     prompt = f"""
@@ -513,7 +553,7 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
 {json.dumps([{'name': s['name'], 'desc': s['description']} for s in existing_strategies[:3]], ensure_ascii=False, indent=2)}
 
 【用户的新需求与优化方向】
-{user_input}
+{user_input_clean}
 
 【市场背景】
 当前A股市场以短线交易为主，涨停板策略、连板股策略、回调买入策略等较为有效。
