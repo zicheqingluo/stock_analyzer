@@ -451,7 +451,7 @@ def run_quant_strategy():
         import traceback
         traceback.print_exc()
 
-def create_quant_strategy_manager(self=None):
+def create_quant_strategy_manager():
     """创建量化策略管理器文件"""
     quant_content = '''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
@@ -819,6 +819,97 @@ def main_ui(stock_monitor, stock_data_fetcher):
 
 
 if __name__ == "__main__":
-    # 测试代码
-    print("股票分析UI模块测试")
-    # 这里可以添加测试代码
+    # 主程序入口
+    print("股票分析UI模块启动...")
+    
+    # 尝试导入必要的模块
+    try:
+        # 导入监控模块
+        import importlib.util
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # 尝试导入stock_monitor_analysis
+        monitor_path = os.path.join(current_dir, "stock_monitor_analysis.py")
+        if os.path.exists(monitor_path):
+            spec = importlib.util.spec_from_file_location("stock_monitor_analysis", monitor_path)
+            stock_monitor_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(stock_monitor_module)
+            stock_monitor = stock_monitor_module.StockMonitorAnalysis()
+            print("✓ 监控模块加载成功")
+        else:
+            print("✗ 监控模块文件不存在")
+            stock_monitor = None
+        
+        # 尝试导入stock_data_fetcher
+        fetcher_path = os.path.join(current_dir, "stock_data_fetcher.py")
+        if os.path.exists(fetcher_path):
+            spec = importlib.util.spec_from_file_location("stock_data_fetcher", fetcher_path)
+            stock_data_fetcher_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(stock_data_fetcher_module)
+            stock_data_fetcher = stock_data_fetcher_module
+            print("✓ 数据获取模块加载成功")
+        else:
+            print("✗ 数据获取模块文件不存在")
+            stock_data_fetcher = None
+        
+        # 运行主UI
+        main_ui(stock_monitor, stock_data_fetcher)
+        
+    except Exception as e:
+        print(f"启动过程中发生错误: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # 尝试使用简化版本
+        print("\n尝试使用简化版本...")
+        # 创建虚拟模块
+        class DummyMonitor:
+            def comprehensive_analysis(self, symbol):
+                return {
+                    '股票代码': symbol,
+                    '分析时间': '2024-01-01 00:00:00',
+                    '综合评级': '测试',
+                    '评级说明': '测试模式',
+                    '投资建议': '请检查模块加载',
+                    '关键指标': {
+                        '是否涨停': False,
+                        '是否有炸板': False,
+                        '是否漏单': False,
+                        '是否重新封板': False,
+                        '是否强势股': False,
+                        '炸板次数': 0,
+                        '最终是否涨停': False,
+                        '几连板': 0
+                    }
+                }
+        
+        class DummyFetcher:
+            def get_stock_info(self, symbol):
+                return {'代码': symbol, '名称': '测试股票'}
+        
+        dummy_monitor = DummyMonitor()
+        dummy_fetcher = DummyFetcher()
+        
+        # 运行简化UI
+        show_menu()
+        while True:
+            choice = get_menu_choice()
+            
+            if choice == "1":
+                code = get_stock_name_input()
+                if code:
+                    analysis = dummy_monitor.comprehensive_analysis(code)
+                    print(f"\n【测试分析结果】")
+                    print(f"股票代码: {analysis['股票代码']}")
+                    print(f"综合评级: {analysis['综合评级']}")
+                    print(f"投资建议: {analysis['投资建议']}")
+            
+            elif choice == "2":
+                run_quant_strategy()
+            
+            elif choice == "3":
+                run_llm_analysis()
+            
+            elif choice == "4":
+                print("感谢使用，再见！")
+                break
