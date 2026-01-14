@@ -448,15 +448,17 @@ def run_quant_strategy():
                 
                 print(f"\n【提取到的信息】")
                 print(f"股票代码: {extracted_symbols}")
-                print(f"日期: {extracted_dates}")
+                print(f"分析日期: {extracted_dates[0] if extracted_dates else '未找到'}")
                 
                 # 使用第一个股票代码作为主要分析对象
                 if extracted_symbols:
-                    # 获取数据并总结规律
+                    # 获取数据并总结规律，只使用第一个日期
+                    # 因为所有分析都是同一时间进行的
+                    date_to_use = extracted_dates[0] if extracted_dates else None
                     new_strategy = quant_module.upgrade_strategy_with_stock_and_dates(
                         cleaned_input, 
                         extracted_symbols, 
-                        extracted_dates
+                        [date_to_use] if date_to_use else []
                     )
                     
                     if "error" in new_strategy:

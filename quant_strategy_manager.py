@@ -113,7 +113,7 @@ def extract_dates_from_text(text: str) -> List[str]:
         text: 输入的文本
         
     Returns:
-        日期列表（格式：YYYYMMDD）
+        日期列表（格式：YYYYMMDD），只返回第一个找到的日期
     """
     # 匹配多种日期格式
     patterns = [
@@ -136,11 +136,11 @@ def extract_dates_from_text(text: str) -> List[str]:
                 # 格式化为YYYYMMDD
                 date_str = f"{year}{month}{day}"
                 dates.append(date_str)
+                # 只取第一个找到的日期
+                return [date_str]
     
-    # 去重
-    unique_dates = list(set(dates))
-    
-    return unique_dates
+    # 如果没有找到日期，返回空列表
+    return []
 
 def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], dates: List[str]) -> Dict[str, Any]:
     """
@@ -177,17 +177,20 @@ def upgrade_strategy_with_stock_and_dates(user_input: str, symbols: List[str], d
         from stock_data_collector import StockDataCollector
         data_collector = StockDataCollector()
         
+        # 只使用第一个日期（如果存在），因为所有分析都是同一时间进行的
+        target_date = None
+        if dates:
+            target_date = dates[0]
+            print(f"使用统一分析日期: {target_date}")
+        else:
+            print("未找到日期，使用最近日期")
+        
         for i, symbol in enumerate(symbols):
             print(f"\n【获取股票数据 {i+1}/{len(symbols)}】")
             print(f"股票代码: {symbol}")
             
-            # 尝试使用对应的日期，如果没有日期则使用None
-            target_date = None
-            if i < len(dates):
-                target_date = dates[i]
-                print(f"使用日期: {target_date}")
-            else:
-                print("未找到对应日期，使用最近日期")
+            # 所有股票使用同一个日期
+            print(f"使用日期: {target_date}")
             
             try:
                 # 收集股票数据
