@@ -714,7 +714,64 @@ def run_llm_analysis():
     print(f"LLM智能分析 - 三功能版")
     print(f"{'='*60}")
     
+    # 显示LLM提供商选项
+    print("\n请选择LLM提供商:")
+    print("1. 本地模拟（快速，无需网络）")
+    print("2. DeepSeek API（需要API密钥）")
+    print("3. OpenAI API（需要API密钥）")
+    
+    llm_choice = input("\n请选择LLM提供商 (1-3, 默认1): ").strip()
+    if not llm_choice:
+        llm_choice = "1"
+    
+    # 根据选择配置LLM
+    use_local = True
+    llm_provider = "local"
+    
+    if llm_choice == "2":
+        # 检查是否配置了DeepSeek API密钥
+        deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not deepseek_key:
+            print("\n警告: 未设置DeepSeek API密钥")
+            print("请在环境变量中设置 DEEPSEEK_API_KEY")
+            print("或输入您的API密钥（输入后仅本次会话有效）:")
+            temp_key = input("DeepSeek API密钥: ").strip()
+            if temp_key:
+                os.environ["DEEPSEEK_API_KEY"] = temp_key
+                os.environ["LLM_PROVIDER"] = "deepseek"
+                use_local = False
+                llm_provider = "deepseek"
+                print("已使用临时API密钥")
+            else:
+                print("未提供API密钥，将使用本地模拟")
+        else:
+            os.environ["LLM_PROVIDER"] = "deepseek"
+            use_local = False
+            llm_provider = "deepseek"
+    
+    elif llm_choice == "3":
+        # 检查是否配置了OpenAI API密钥
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            print("\n警告: 未设置OpenAI API密钥")
+            print("请在环境变量中设置 OPENAI_API_KEY")
+            print("或输入您的API密钥（输入后仅本次会话有效）:")
+            temp_key = input("OpenAI API密钥: ").strip()
+            if temp_key:
+                os.environ["OPENAI_API_KEY"] = temp_key
+                os.environ["LLM_PROVIDER"] = "openai"
+                use_local = False
+                llm_provider = "openai"
+                print("已使用临时API密钥")
+            else:
+                print("未提供API密钥，将使用本地模拟")
+        else:
+            os.environ["LLM_PROVIDER"] = "openai"
+            use_local = False
+            llm_provider = "openai"
+    
     # 显示功能选项
+    print(f"\n当前使用: {'本地模拟' if use_local else llm_provider}")
     print("\n请选择分析模式:")
     print("1. 标准分析（仅使用现有经验规则）")
     print("2. 分析并优化提示词（将本次分析加入案例库）")
@@ -746,36 +803,50 @@ def run_llm_analysis():
         # 根据模式执行分析
         update_prompt = (mode_choice == "2")
         only_collect_data = (mode_choice == "3")
-        
+                
         if only_collect_data:
             print("\n【功能1】仅收集数据模式...")
             # 只收集数据
             stock_data = llm_module.llm_analyzer.collect_stock_data(code)
-            
+                    
             if "error" in stock_data:
                 print(f"数据收集失败: {stock_data['error']}")
                 return
-            
+                    
             print(f"\n【数据收集结果】")
             print(f"股票代码: {stock_data['symbol']}")
             print(f"股票名称: {stock_data['name']}")
             print(f"分析日期: {stock_data['analysis_date']}")
-            
+                    
             print(f"\n【关键指标】")
             key_metrics = stock_data.get('key_metrics', {})
             for key, value in key_metrics.items():
                 print(f"  {key}: {value}")
-            
+                    
             print(f"\n【历史数据摘要】")
             print(stock_data.get('history_summary', '无数据'))
-            
+                    
             print(f"\n【数据验证】")
             print("请检查以上数据是否正确，特别是日期和涨停信息")
-            
+                    
         else:
             # 执行完整分析
-            print(f"\n正在使用LLM进行智能分析...")
-            result = llm_module.analyze_stock_with_llm(code, use_local=True, update_prompt=update_prompt)
+            print(f"\n正在使用{'本地模拟LLM' if use_local else llm_provider + ' API'}进行智能分析...")
+                    
+            # 重新创建LLM分析器实例以应用新的配置
+            if not use_local:
+                # 创建配置好的分析器
+                api_key = os.environ.get("DEEPSEEK_API_KEY") if llm_provider == "deepseek" else os.environ.get("OPENAI_API_KEY")
+                base_url = "https://api.deepseek.com" if llm_provider == "deepseek" else None
+                        
+                custom_analyzer = llm_module.StockLLMAnalyzer(
+                    llm_provider=llm_provider,
+                    api_key=api_key,
+                    base_url=base_url
+                )
+                result = custom_analyzer.analyze_with_llm(code, use_local=False, update_prompt=update_prompt)
+            else:
+                result = llm_module.analyze_stock_with_llm(code, use_local=True, update_prompt=update_prompt)
             
             if "error" in result:
                 print(f"LLM分析失败: {result['error']}")

@@ -39,15 +39,37 @@ except ImportError:
 class StockLLMAnalyzer:
     """股票LLM智能分析器"""
     
-    def __init__(self, llm_provider: str = "openai"):
+    def __init__(self, llm_provider: str = "local", api_key: str = None, base_url: str = None):
         """
         初始化
         
         Args:
-            llm_provider: LLM提供商，目前支持 "openai" 或 "local"
+            llm_provider: LLM提供商，支持 "deepseek", "openai", "local"
+            api_key: API密钥（如果需要）
+            base_url: API基础URL（如果需要）
         """
         self.llm_provider = llm_provider
+        self.api_key = api_key
+        self.base_url = base_url
         self.experience_prompts = self._load_experience_prompts()
+        
+        # 初始化DeepSeek客户端（如果需要）
+        if llm_provider == "deepseek":
+            try:
+                from openai import OpenAI
+                self.deepseek_client = OpenAI(
+                    api_key=api_key or os.environ.get("DEEPSEEK_API_KEY"),
+                    base_url=base_url or "https://api.deepseek.com"
+                )
+                print("DeepSeek客户端初始化成功")
+            except ImportError:
+                print("警告: 未安装openai包，DeepSeek功能将不可用")
+                self.deepseek_client = None
+            except Exception as e:
+                print(f"DeepSeek客户端初始化失败: {e}")
+                self.deepseek_client = None
+        else:
+            self.deepseek_client = None
         
     def _load_experience_prompts(self) -> Dict[str, str]:
         """
@@ -697,13 +719,105 @@ class StockLLMAnalyzer:
     def _call_external_llm(self, prompt: str) -> str:
         """
         调用外部LLM API
-        这里需要根据实际的LLM提供商进行实现
+        支持DeepSeek、OpenAI等兼容OpenAI API的提供商
         """
-        # 这里是一个示例，实际使用时需要替换为真实的API调用
-        # 例如：OpenAI API, Claude API, 本地部署的LLM等
+        if self.llm_provider == "deepseek":
+            return self._call_deepseek_api(prompt)
+        elif self.llm_provider == "openai":
+            return self._call_openai_api(prompt)
+        else:
+            print(f"警告: 不支持的LLM提供商: {self.llm_provider}，使用本地模拟")
+            return self._call_local_llm(prompt)
+    
+    def _call_deepseek_api(self, prompt: str) -> str:
+        """
+        调用DeepSeek API
+        """
+        if not self.deepseek_client:
+            print("DeepSeek客户端未初始化，使用本地模拟")
+            return self._call_local_llm(prompt)
         
-        print("注意：当前使用本地模拟LLM，如需真实LLM请配置API")
-        return self._call_local_llm(prompt)
+        try:
+            print("正在调用DeepSeek API...")
+            
+            # 构建消息
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一个专业的股票分析师，擅长分析中国A股市场，特别是涨停板、连板股、炸板等短线交易模式。请根据提供的数据进行专业分析。"
+                },
+                {
+                    "role": "user", 
+                    "content": prompt
+                }
+            ]
+            
+            # 调用API
+            response = self.deepseek_client.chat.completions.create(
+                model="deepseek-chat",  # 或 "deepseek-coder" 根据需求
+                messages=messages,
+                max_tokens=2000,
+                temperature=0.7,
+                stream=False
+            )
+            
+            # 提取回复内容
+            if response and response.choices:
+                content = response.choices[0].message.content
+                print("DeepSeek API调用成功")
+                return content
+            else:
+                print("DeepSeek API返回空响应")
+                return self._call_local_llm(prompt)
+                
+        except Exception as e:
+            print(f"DeepSeek API调用失败: {e}")
+            print("将使用本地模拟LLM")
+            return self._call_local_llm(prompt)
+    
+    def _call_openai_api(self, prompt: str) -> str:
+        """
+        调用OpenAI API
+        """
+        try:
+            from openai import OpenAI
+            
+            # 使用环境变量中的API密钥
+            client = OpenAI(api_key=self.api_key or os.environ.get("OPENAI_API_KEY"))
+            
+            print("正在调用OpenAI API...")
+            
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一个专业的股票分析师，擅长分析中国A股市场，特别是涨停板、连板股、炸板等短线交易模式。请根据提供的数据进行专业分析。"
+                },
+                {
+                    "role": "user", 
+                    "content": prompt
+                }
+            ]
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",  # 或 "gpt-4"
+                messages=messages,
+                max_tokens=2000,
+                temperature=0.7,
+                stream=False
+            )
+            
+            if response and response.choices:
+                content = response.choices[0].message.content
+                print("OpenAI API调用成功")
+                return content
+            else:
+                print("OpenAI API返回空响应")
+                return self._call_local_llm(prompt)
+                
+        except Exception as e:
+            print(f"OpenAI API调用失败: {e}")
+            print("将使用本地模拟LLM")
+            return self._call_local_llm(prompt)
     
     def _parse_llm_response(self, response: str) -> Dict[str, str]:
         """
@@ -827,8 +941,38 @@ class StockLLMAnalyzer:
             print(f"保存经验失败: {e}")
 
 
-# 创建全局实例
-llm_analyzer = StockLLMAnalyzer()
+# 创建全局实例 - 支持从环境变量配置DeepSeek
+def create_llm_analyzer():
+    """创建LLM分析器实例，支持多种配置方式"""
+    
+    # 从环境变量获取配置
+    llm_provider = os.environ.get("LLM_PROVIDER", "local").lower()
+    api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("LLM_BASE_URL")
+    
+    # 检查是否配置了DeepSeek
+    if llm_provider == "deepseek" and api_key:
+        print(f"使用DeepSeek作为LLM提供商")
+        return StockLLMAnalyzer(
+            llm_provider="deepseek",
+            api_key=api_key,
+            base_url=base_url or "https://api.deepseek.com"
+        )
+    elif llm_provider == "openai" and api_key:
+        print(f"使用OpenAI作为LLM提供商")
+        return StockLLMAnalyzer(
+            llm_provider="openai",
+            api_key=api_key,
+            base_url=base_url or "https://api.openai.com/v1"
+        )
+    else:
+        print(f"使用本地模拟LLM")
+        print("提示: 要使用DeepSeek，请设置环境变量:")
+        print("  export DEEPSEEK_API_KEY=your_api_key_here")
+        print("  export LLM_PROVIDER=deepseek")
+        return StockLLMAnalyzer(llm_provider="local")
+
+llm_analyzer = create_llm_analyzer()
 
 def analyze_stock_with_llm(symbol: str, use_local: bool = True) -> Dict[str, Any]:
     """使用LLM分析股票的快捷函数"""
@@ -842,6 +986,20 @@ if __name__ == "__main__":
     # 测试代码
     print("股票LLM分析器测试")
     print("=" * 60)
+    
+    # 显示配置信息
+    print("\n当前LLM配置:")
+    print(f"提供商: {llm_analyzer.llm_provider}")
+    if llm_analyzer.llm_provider != "local":
+        print(f"API密钥: {'已设置' if llm_analyzer.api_key else '未设置'}")
+    
+    print("\n使用说明:")
+    print("1. 要使用DeepSeek API，请设置环境变量:")
+    print("   export DEEPSEEK_API_KEY=your_api_key_here")
+    print("   export LLM_PROVIDER=deepseek")
+    print("2. 要使用OpenAI API，请设置环境变量:")
+    print("   export OPENAI_API_KEY=your_api_key_here")
+    print("   export LLM_PROVIDER=openai")
     
     # 测试股票
     test_symbol = "002115"
@@ -861,7 +1019,7 @@ if __name__ == "__main__":
     
     # LLM分析
     print("\n2. LLM分析...")
-    result = analyze_stock_with_llm(test_symbol, use_local=True)
+    result = analyze_stock_with_llm(test_symbol, use_local=(llm_analyzer.llm_provider == "local"))
     
     if "error" in result:
         print(f"分析失败: {result['error']}")
