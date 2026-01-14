@@ -268,6 +268,30 @@ def upgrade_strategy_with_stock(stock_symbol: str, user_input: str) -> Dict[str,
         traceback.print_exc()
         return {"error": f"生成策略失败: {str(e)}"}
 
+def get_latest_pattern_summary() -> Optional[str]:
+    """
+    获取最新的规律总结
+    
+    Returns:
+        规律总结内容，如果没有则返回None
+    """
+    import os
+    summary_dir = "pattern_summaries"
+    
+    # 确保目录存在
+    if not os.path.exists(summary_dir):
+        return None
+    
+    latest_file = os.path.join(summary_dir, "latest_pattern_summary.txt")
+    
+    if os.path.exists(latest_file):
+        try:
+            with open(latest_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        except:
+            return None
+    return None
+
 def create_fallback_strategy(stock_symbol: str, user_input: str) -> Dict[str, Any]:
     """创建备用策略"""
     return {
