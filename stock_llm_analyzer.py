@@ -141,7 +141,8 @@ class StockLLMAnalyzer:
         return self.data_collector.collect_stock_data(symbol, days_back)
     
     def analyze_with_llm(self, symbol: str, use_local: bool = False, 
-                        update_prompt: bool = False) -> Dict[str, Any]:
+                        update_prompt: bool = False,
+                        include_pattern_summary: bool = True) -> Dict[str, Any]:
         """
         使用LLM分析股票
         
@@ -164,9 +165,43 @@ class StockLLMAnalyzer:
             # 2. 构建增强提示词
             print(f"【功能2】构建增强提示词...")
             if prompt_manager:
-                prompt = get_enhanced_prompt_for_stock(stock_data)
+                base_prompt = get_enhanced_prompt_for_stock(stock_data)
             else:
-                prompt = self._build_llm_prompt(stock_data)
+                base_prompt = self._build_llm_prompt(stock_data)
+            
+            # 获取规律总结（如果可用）
+            pattern_summary = ""
+            if include_pattern_summary:
+                try:
+                    from quant_strategy_manager import get_latest_pattern_summary
+                    summary = get_latest_pattern_summary()
+                    if summary:
+                        pattern_summary = f"""
+
+【近期用户总结的交易规律】
+{summary}
+
+请参考以上用户总结的规律，结合当前股票数据进行对比分析。"""
+                        print("✓ 已加入用户总结的规律")
+                except Exception as e:
+                    print(f"获取规律总结失败: {e}")
+            
+            # 构建完整提示词
+            prompt = f"""{base_prompt}
+
+【股票基本信息】
+股票代码: {stock_data.get('symbol', symbol)}
+股票名称: {stock_data.get('name', '未知')}
+分析时间: {stock_data.get('analysis_date', '未知')}
+
+【股票关键数据】
+{json.dumps(stock_data.get('key_metrics', {}), ensure_ascii=False, indent=2)}
+
+【历史数据摘要】
+{stock_data.get('history_summary', '无数据')}
+{pattern_summary}
+
+请提供详细的分析，特别注意参考用户总结的规律（如果提供了的话）。"""
             
             # 3. 智能分析功能
             print(f"【功能3】正在调用大模型进行智能分析...")
@@ -375,10 +410,10 @@ def create_llm_analyzer():
 
 llm_analyzer = create_llm_analyzer()
 
-def analyze_stock_with_llm(symbol: str, use_local: bool = False) -> Dict[str, Any]:
+def analyze_stock_with_llm(symbol: str, use_local: bool = False, include_pattern_summary: bool = True) -> Dict[str, Any]:
     """使用LLM分析股票的快捷函数"""
     # 忽略use_local参数，始终使用API
-    return llm_analyzer.analyze_with_llm(symbol, use_local=False)
+    return llm_analyzer.analyze_with_llm(symbol, use_local=False, include_pattern_summary=include_pattern_summary)
 
 def collect_stock_data(symbol: str) -> Dict[str, Any]:
     """收集股票数据的快捷函数"""

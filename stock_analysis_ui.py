@@ -378,11 +378,13 @@ def show_menu():
 
 def run_quant_strategy():
     """
-    运行量化策略管理
+    运行量化策略管理 - 现在用于总结交易规律
     """
     print(f"\n{'='*60}")
-    print(f"量化策略管理")
+    print(f"交易规律总结")
     print(f"{'='*60}")
+    print("功能：从您提供的股票分析中总结交易规律")
+    print("注意：请提供包含股票代码和分析的文本")
     
     try:
         # 尝试导入量化策略模块
@@ -403,33 +405,32 @@ def run_quant_strategy():
         quant_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(quant_module)
         
-        # 显示当前策略
-        strategies = quant_module.view_current_strategies()
-        print(f"\n【当前量化策略】")
-        if strategies:
-            for i, strategy in enumerate(strategies, 1):
-                print(f"{i}. {strategy.get('name', '未命名策略')}")
-                print(f"   描述: {strategy.get('description', '无描述')}")
-                print(f"   创建时间: {strategy.get('created_at', '未知')}")
+        # 显示当前规律总结
+        try:
+            latest_summary = quant_module.get_latest_pattern_summary()
+            if latest_summary:
+                print(f"\n【最新规律总结】")
+                print(latest_summary[:500] + "..." if len(latest_summary) > 500 else latest_summary)
                 print()
-        else:
-            print("暂无策略，请创建新策略")
+        except:
+            pass
         
         # 提供选项
         print("\n请选择操作:")
-        print("1. 升级优化策略")
-        print("2. 查看策略详情")
+        print("1. 从分析文本中总结规律")
+        print("2. 查看历史规律总结")
         print("3. 返回主菜单")
         
         choice = input("请输入选项: ").strip()
         
         if choice == "1":
-            print("\n请输入您的策略优化想法（支持多行输入）:")
+            print("\n请输入您的股票分析文本（支持多行输入）:")
+            print("请确保文本中包含股票代码（如002115）和您的分析")
             print("例如：")
-            print("- 增加对成交量的要求")
-            print("- 优化止损条件")
-            print("- 结合市场情绪指标")
-            print("- 等等...")
+            print("002115 三维通信：一字板涨停，封板极强")
+            print("002131 利欧股份：高开涨停，有炸板但回封")
+            print("- 金风科技：大高开加速上板，多次炸板后封板...")
+            print("等等...")
             
             user_input = get_multiline_input("", "END")
             
@@ -437,35 +438,42 @@ def run_quant_strategy():
             if user_input.strip():
                 # 先清理输入
                 cleaned_input = user_input.encode('utf-8', 'ignore').decode('utf-8')
-                print("\n正在生成优化策略...")
+                print("\n正在从您的分析中总结规律...")
+                print("（这将提取股票代码、获取数据，并让大模型总结规律）")
+                
+                # 使用默认股票代码作为占位符
                 new_strategy = quant_module.upgrade_strategy(cleaned_input)
-                print(f"\n【新生成的策略】")
-                print(f"名称: {new_strategy.get('name', '新策略')}")
-                print(f"描述: {new_strategy.get('description', '无描述')}")
-                print(f"内容:\n{new_strategy.get('content', '无内容')}")
-                print(f"\n策略已保存到本地!")
+                
+                if "error" in new_strategy:
+                    print(f"总结规律失败: {new_strategy['error']}")
+                else:
+                    print(f"\n【规律总结完成】")
+                    print(f"名称: {new_strategy.get('name', '新总结')}")
+                    print(f"描述: {new_strategy.get('description', '无描述')}")
+                    print(f"\n【总结内容】")
+                    content = new_strategy.get('content', '')
+                    # 显示前800个字符
+                    print(content[:800] + "..." if len(content) > 800 else content)
+                    print(f"\n规律已保存，可在LLM分析功能中使用！")
             else:
-                print("输入为空，跳过策略升级")
+                print("输入为空，跳过")
         elif choice == "2":
-            if strategies:
-                try:
-                    idx = int(input(f"请输入要查看的策略编号 (1-{len(strategies)}): ").strip())
-                    if 1 <= idx <= len(strategies):
-                        strategy = strategies[idx-1]
-                        print(f"\n【策略详情】")
-                        print(f"名称: {strategy.get('name', '未命名策略')}")
-                        print(f"描述: {strategy.get('description', '无描述')}")
-                        print(f"创建时间: {strategy.get('created_at', '未知')}")
-                        print(f"内容:\n{strategy.get('content', '无内容')}")
-                    else:
-                        print("编号超出范围")
-                except ValueError:
-                    print("请输入有效的数字")
-            else:
-                print("暂无策略可查看")
+            try:
+                strategies = quant_module.view_current_strategies()
+                print(f"\n【历史策略/总结】")
+                if strategies:
+                    for i, strategy in enumerate(strategies, 1):
+                        print(f"{i}. {strategy.get('name', '未命名')}")
+                        print(f"   描述: {strategy.get('description', '无描述')}")
+                        print(f"   创建时间: {strategy.get('created_at', '未知')}")
+                        print()
+                else:
+                    print("暂无历史记录")
+            except:
+                print("查看历史记录失败")
                 
     except Exception as e:
-        print(f"量化策略功能失败: {e}")
+        print(f"功能执行失败: {e}")
         import traceback
         traceback.print_exc()
 
@@ -844,7 +852,7 @@ def run_llm_analysis():
                 api_key=api_key,
                 base_url=base_url
             )
-            result = custom_analyzer.analyze_with_llm(code, use_local=False, update_prompt=update_prompt)
+            result = custom_analyzer.analyze_with_llm(code, use_local=False, update_prompt=update_prompt, include_pattern_summary=True)
             
             if "error" in result:
                 print(f"LLM分析失败: {result['error']}")
