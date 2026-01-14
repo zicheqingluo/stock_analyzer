@@ -287,9 +287,11 @@ def get_multiline_input(prompt: str, end_marker: str = "END") -> str:
     while True:
         try:
             line = input()
-            if line.strip() == end_marker:
+            # 清理不可编码字符
+            cleaned_line = line.encode('utf-8', 'ignore').decode('utf-8')
+            if cleaned_line.strip() == end_marker:
                 break
-            lines.append(line)
+            lines.append(cleaned_line)
         except EOFError:
             # 用户按Ctrl+D/Ctrl+Z
             print(f"\n检测到输入结束")
@@ -431,9 +433,12 @@ def run_quant_strategy():
             
             user_input = get_multiline_input("", "END")
             
+            # 清理用户输入中的不可编码字符
             if user_input.strip():
+                # 先清理输入
+                cleaned_input = user_input.encode('utf-8', 'ignore').decode('utf-8')
                 print("\n正在生成优化策略...")
-                new_strategy = quant_module.upgrade_strategy(user_input)
+                new_strategy = quant_module.upgrade_strategy(cleaned_input)
                 print(f"\n【新生成的策略】")
                 print(f"名称: {new_strategy.get('name', '新策略')}")
                 print(f"描述: {new_strategy.get('description', '无描述')}")
@@ -531,12 +536,32 @@ def load_strategies() -> List[Dict[str, Any]]:
 def save_strategies(strategies: List[Dict[str, Any]]) -> bool:
     """保存策略到文件"""
     try:
+        # 清理策略数据中的不可编码字符
+        cleaned_strategies = []
+        for strategy in strategies:
+            cleaned_strategy = {}
+            for key, value in strategy.items():
+                if isinstance(value, str):
+                    # 清理字符串中的不可编码字符
+                    cleaned_value = value.encode('utf-8', 'ignore').decode('utf-8')
+                    cleaned_strategy[key] = cleaned_value
+                else:
+                    cleaned_strategy[key] = value
+            cleaned_strategies.append(cleaned_strategy)
+        
         with open(STRATEGY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(strategies, f, ensure_ascii=False, indent=2)
+            json.dump(cleaned_strategies, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
         print(f"保存策略文件失败: {e}")
-        return False
+        # 尝试使用更严格的编码方式
+        try:
+            with open(STRATEGY_FILE, 'w', encoding='utf-8', errors='ignore') as f:
+                json.dump(strategies, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e2:
+            print(f"再次保存策略文件失败: {e2}")
+            return False
 
 def view_current_strategies() -> List[Dict[str, Any]]:
     """查看当前所有策略"""
@@ -554,8 +579,15 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
     # 加载现有策略
     existing_strategies = load_strategies()
     
-    # 清理用户输入，移除可能的空白行
-    user_input_clean = "\n".join([line.strip() for line in user_input.split("\n") if line.strip()])
+    # 清理用户输入，移除可能的空白行和不可编码字符
+    cleaned_lines = []
+    for line in user_input.split("\n"):
+        line = line.strip()
+        if line:
+            # 清理不可编码字符
+            cleaned_line = line.encode('utf-8', 'ignore').decode('utf-8')
+            cleaned_lines.append(cleaned_line)
+    user_input_clean = "\n".join(cleaned_lines)
     
     # 构建更专业的量化策略提示词
     prompt = f"""

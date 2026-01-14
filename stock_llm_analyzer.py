@@ -622,7 +622,18 @@ class StockLLMAnalyzer:
         user_input = ""
         for line in prompt.split('\n'):
             if "用户的新需求：" in line:
-                user_input = line.split("：")[1].strip()
+                # 清理不可编码字符
+                cleaned_line = line.encode('utf-8', 'ignore').decode('utf-8')
+                parts = cleaned_line.split("：")
+                if len(parts) > 1:
+                    user_input = parts[1].strip()
+                break
+            elif "用户需求：" in line:
+                # 清理不可编码字符
+                cleaned_line = line.encode('utf-8', 'ignore').decode('utf-8')
+                parts = cleaned_line.split("：")
+                if len(parts) > 1:
+                    user_input = parts[1].strip()
                 break
         
         # 基于用户需求生成策略
@@ -743,9 +754,15 @@ class StockLLMAnalyzer:
             生成的策略字典
         """
         try:
+            # 清理用户输入中的不可编码字符
+            if isinstance(user_input, str):
+                user_input_clean = user_input.encode('utf-8', 'ignore').decode('utf-8')
+            else:
+                user_input_clean = str(user_input).encode('utf-8', 'ignore').decode('utf-8')
+            
             # 构建提示词
             prompt = f"""
-用户需求：{user_input}
+用户需求：{user_input_clean}
 
 请生成一个专业的量化交易策略，专注于中国A股市场。
 要求策略具体、可执行、可量化。
@@ -761,10 +778,10 @@ class StockLLMAnalyzer:
             from datetime import datetime
             strategy = {
                 "name": f"量化策略-{datetime.now().strftime('%Y%m%d-%H%M')}",
-                "description": f"基于用户需求生成: {user_input[:50]}...",
+                "description": f"基于用户需求生成: {user_input_clean[:50]}...",
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "content": strategy_content,
-                "user_input": user_input,
+                "user_input": user_input_clean,
                 "source": "llm_generated"
             }
             
