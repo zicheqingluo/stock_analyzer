@@ -427,10 +427,11 @@ def run_quant_strategy():
             print("\n请输入您的股票分析文本（支持多行输入）:")
             print("请确保文本中包含股票代码（如002115）和您的分析")
             print("例如：")
-            print("002115 三维通信：一字板涨停，封板极强")
-            print("002131 利欧股份：高开涨停，有炸板但回封")
+            print("2025-01-14 002115 三维通信：一字板涨停，封板极强")
+            print("2025-01-13 002131 利欧股份：高开涨停，有炸板但回封")
             print("- 金风科技：大高开加速上板，多次炸板后封板...")
             print("等等...")
+            print("注意：日期格式可以是YYYY-MM-DD或YYYYMMDD")
             
             user_input = get_multiline_input("", "END")
             
@@ -439,22 +440,51 @@ def run_quant_strategy():
                 # 先清理输入
                 cleaned_input = user_input.encode('utf-8', 'ignore').decode('utf-8')
                 print("\n正在从您的分析中总结规律...")
-                print("（这将提取股票代码、获取数据，并让大模型总结规律）")
+                print("（这将提取股票代码、日期，获取数据，并让大模型总结规律）")
                 
-                # 使用默认股票代码作为占位符
-                new_strategy = quant_module.upgrade_strategy(cleaned_input)
+                # 提取股票代码和日期
+                extracted_symbols = quant_module.extract_stock_symbols_from_text(cleaned_input)
+                extracted_dates = quant_module.extract_dates_from_text(cleaned_input)
                 
-                if "error" in new_strategy:
-                    print(f"总结规律失败: {new_strategy['error']}")
+                print(f"\n【提取到的信息】")
+                print(f"股票代码: {extracted_symbols}")
+                print(f"日期: {extracted_dates}")
+                
+                # 使用第一个股票代码作为主要分析对象
+                if extracted_symbols:
+                    # 获取数据并总结规律
+                    new_strategy = quant_module.upgrade_strategy_with_stock_and_dates(
+                        cleaned_input, 
+                        extracted_symbols, 
+                        extracted_dates
+                    )
+                    
+                    if "error" in new_strategy:
+                        print(f"总结规律失败: {new_strategy['error']}")
+                    else:
+                        print(f"\n【规律总结完成】")
+                        print(f"名称: {new_strategy.get('name', '新总结')}")
+                        print(f"描述: {new_strategy.get('description', '无描述')}")
+                        print(f"\n【总结内容】")
+                        content = new_strategy.get('content', '')
+                        # 显示前800个字符
+                        print(content[:800] + "..." if len(content) > 800 else content)
+                        print(f"\n规律已保存，可在LLM分析功能中使用！")
                 else:
-                    print(f"\n【规律总结完成】")
-                    print(f"名称: {new_strategy.get('name', '新总结')}")
-                    print(f"描述: {new_strategy.get('description', '无描述')}")
-                    print(f"\n【总结内容】")
-                    content = new_strategy.get('content', '')
-                    # 显示前800个字符
-                    print(content[:800] + "..." if len(content) > 800 else content)
-                    print(f"\n规律已保存，可在LLM分析功能中使用！")
+                    print("未提取到股票代码，使用默认方式总结规律")
+                    new_strategy = quant_module.upgrade_strategy(cleaned_input)
+                    
+                    if "error" in new_strategy:
+                        print(f"总结规律失败: {new_strategy['error']}")
+                    else:
+                        print(f"\n【规律总结完成】")
+                        print(f"名称: {new_strategy.get('name', '新总结')}")
+                        print(f"描述: {new_strategy.get('description', '无描述')}")
+                        print(f"\n【总结内容】")
+                        content = new_strategy.get('content', '')
+                        # 显示前800个字符
+                        print(content[:800] + "..." if len(content) > 800 else content)
+                        print(f"\n规律已保存，可在LLM分析功能中使用！")
             else:
                 print("输入为空，跳过")
         elif choice == "2":
