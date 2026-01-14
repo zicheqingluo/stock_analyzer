@@ -526,31 +526,33 @@ def upgrade_strategy(user_input: str) -> Dict[str, Any]:
 请用中文回答，内容要具体、可执行。
 """
     
-    # 调用LLM生成新策略
+    # 调用LLM生成新策略 - 使用专门的方法
     try:
         # 尝试导入LLM分析器
         current_dir = os.path.dirname(os.path.abspath(__file__))
         llm_path = os.path.join(current_dir, "stock_llm_analyzer.py")
-        
+            
         spec = importlib.util.spec_from_file_location("stock_llm_analyzer", llm_path)
         llm_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(llm_module)
-        
-        # 调用LLM
-        llm_response = llm_module.llm_analyzer._call_local_llm(prompt)
-        
-        # 解析响应
-        strategy_content = llm_response
-        
-        # 创建新策略对象
-        new_strategy = {
-            "name": f"优化策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
-            "description": f"基于用户需求生成的策略: {user_input[:50]}...",
-            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "content": strategy_content,
-            "user_input": user_input,
-            "source": "llm_generated"
-        }
+            
+        # 使用专门的量化策略生成方法
+        new_strategy = llm_module.llm_analyzer.generate_quant_strategy(user_input, existing_strategies)
+            
+        # 如果生成失败，使用备用方法
+        if new_strategy.get("source") == "error_fallback":
+            # 使用原来的方法
+            llm_response = llm_module.llm_analyzer._call_local_llm(prompt)
+            strategy_content = llm_response
+                
+            new_strategy = {
+                "name": f"优化策略-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}",
+                "description": f"基于用户需求生成的策略: {user_input[:50]}...",
+                "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "content": strategy_content,
+                "user_input": user_input,
+                "source": "llm_generated"
+            }
         
         # 保存新策略
         existing_strategies.append(new_strategy)
