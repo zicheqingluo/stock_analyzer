@@ -448,7 +448,11 @@ def run_quant_strategy():
                 
                 print(f"\n【提取到的信息】")
                 print(f"股票代码: {extracted_symbols}")
-                print(f"分析日期: {extracted_dates[0] if extracted_dates else '未找到'}")
+                # 只显示第一个日期
+                if extracted_dates:
+                    print(f"分析日期: {extracted_dates[0]}")
+                else:
+                    print("分析日期: 未找到，将使用最近日期")
                 
                 # 使用第一个股票代码作为主要分析对象
                 if extracted_symbols:

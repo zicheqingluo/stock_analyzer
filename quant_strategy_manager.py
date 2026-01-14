@@ -123,8 +123,6 @@ def extract_dates_from_text(text: str) -> List[str]:
         r'\b(\d{4})年(\d{1,2})月(\d{1,2})日\b',  # YYYY年MM月DD日
     ]
     
-    dates = []
-    
     for pattern in patterns:
         matches = re.findall(pattern, text)
         for match in matches:
@@ -135,8 +133,7 @@ def extract_dates_from_text(text: str) -> List[str]:
                 day = day.zfill(2)
                 # 格式化为YYYYMMDD
                 date_str = f"{year}{month}{day}"
-                dates.append(date_str)
-                # 只取第一个找到的日期
+                # 只返回第一个找到的日期
                 return [date_str]
     
     # 如果没有找到日期，返回空列表
