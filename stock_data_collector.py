@@ -35,6 +35,15 @@ class StockDataCollector:
             # 清理股票代码
             symbol_clean = str(symbol).zfill(6)
             
+            # 检查缓存
+            cache_key = f"{symbol_clean}_{target_date if target_date else 'latest'}_{days_back}"
+            cached_data = self._get_cached_data(cache_key)
+            if cached_data:
+                print(f"✓ 使用缓存数据: {symbol_clean}")
+                return cached_data
+            
+            print(f"✓ 从网络获取数据: {symbol_clean}")
+            
             # 1. 获取股票基本信息
             stock_name = self._get_stock_name(symbol_clean)
             
@@ -60,7 +69,7 @@ class StockDataCollector:
             else:
                 analysis_date = datetime.now().strftime('%Y-%m-%d')
             
-            return {
+            result = {
                 "symbol": symbol_clean,
                 "name": stock_name,
                 "analysis_date": analysis_date,
@@ -70,6 +79,11 @@ class StockDataCollector:
                 "key_metrics": key_metrics,
                 "history_summary": history_summary
             }
+            
+            # 保存到缓存
+            self._save_to_cache(cache_key, result)
+            
+            return result
             
         except Exception as e:
             print(f"收集股票数据失败: {e}")
@@ -322,6 +336,51 @@ class StockDataCollector:
             "炸板次数": limit_up_data.get('blow_up_count', 0),
             "首次涨停时间": limit_up_data.get('first_limit_time', '未知')
         }
+    
+    def _get_cached_data(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """从缓存获取数据"""
+        import os
+        import json
+        from datetime import datetime, timedelta
+        
+        cache_dir = "stock_data_cache"
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        
+        cache_file = os.path.join(cache_dir, f"{cache_key}.json")
+        
+        if os.path.exists(cache_file):
+            try:
+                # 检查缓存是否过期（1小时内有效）
+                file_mtime = os.path.getmtime(cache_file)
+                current_time = datetime.now().timestamp()
+                
+                if current_time - file_mtime < 3600:  # 1小时
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+                else:
+                    print(f"缓存已过期: {cache_key}")
+            except Exception as e:
+                print(f"读取缓存失败: {e}")
+        
+        return None
+    
+    def _save_to_cache(self, cache_key: str, data: Dict[str, Any]):
+        """保存数据到缓存"""
+        import os
+        import json
+        
+        cache_dir = "stock_data_cache"
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        
+        cache_file = os.path.join(cache_dir, f"{cache_key}.json")
+        
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存缓存失败: {e}")
     
     def _generate_history_summary(self, history_data: List[Dict]) -> str:
         """

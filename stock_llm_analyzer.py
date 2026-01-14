@@ -142,7 +142,8 @@ class StockLLMAnalyzer:
     
     def analyze_with_llm(self, symbol: str, use_local: bool = False, 
                         update_prompt: bool = False,
-                        include_pattern_summary: bool = True) -> Dict[str, Any]:
+                        include_pattern_summary: bool = True,
+                        specific_pattern_name: str = None) -> Dict[str, Any]:
         """
         使用LLM分析股票
         
@@ -156,33 +157,75 @@ class StockLLMAnalyzer:
         """
         try:
             # 1. 数据收集功能
-            print(f"【功能1】正在收集 {symbol} 的数据...")
+            print(f"【数据收集】正在收集 {symbol} 的股票数据...")
             stock_data = self.collect_stock_data(symbol)
             
             if "error" in stock_data:
                 return {"error": stock_data["error"]}
             
+            print(f"✓ 数据收集完成: {stock_data.get('name', symbol)}")
+            
             # 2. 构建增强提示词
-            print(f"【功能2】构建增强提示词...")
+            print(f"【提示词构建】正在构建分析提示词...")
             if prompt_manager:
                 base_prompt = get_enhanced_prompt_for_stock(stock_data)
+                print("✓ 使用提示词管理器构建提示词")
             else:
                 base_prompt = self._build_llm_prompt(stock_data)
+                print("✓ 使用内置模板构建提示词")
             
             # 获取规律总结（如果可用）
             pattern_summary = ""
+            pattern_info = ""
             if include_pattern_summary:
                 try:
-                    from quant_strategy_manager import get_latest_pattern_summary
-                    summary = get_latest_pattern_summary()
-                    if summary:
-                        pattern_summary = f"""
+                    from quant_strategy_manager import get_latest_pattern_summary, view_current_strategies, get_strategy_details
+                    
+                    # 如果指定了特定规律名称，尝试获取该规律
+                    if specific_pattern_name:
+                        pattern_data = get_strategy_details(specific_pattern_name)
+                        if pattern_data and pattern_data.get("summary"):
+                            pattern_summary = f"""
 
-【近期用户总结的交易规律】
+【用户指定规律 - {specific_pattern_name}】
+{pattern_data.get("summary")}
+
+请参考以上用户指定的规律，结合当前股票数据进行对比分析。"""
+                            pattern_info = f"✓ 已加入用户指定的规律: {specific_pattern_name}"
+                            print(pattern_info)
+                        else:
+                            print(f"未找到指定的规律: {specific_pattern_name}，将使用最新规律")
+                            specific_pattern_name = None
+                    
+                    # 如果没有指定规律或未找到，使用最新规律
+                    if not specific_pattern_name:
+                        summary = get_latest_pattern_summary()
+                        strategies = view_current_strategies()
+                        
+                        if summary:
+                            # 获取规律名称
+                            pattern_name = "最新规律"
+                            pattern_count = 0
+                            pattern_list = []
+                            for strategy in strategies:
+                                if strategy.get("type") == "pattern_summary_few_shot":
+                                    pattern_count += 1
+                                    pattern_list.append(strategy.get("name", "未命名规律"))
+                                    if pattern_name == "最新规律":  # 只取第一个作为主要参考
+                                        pattern_name = strategy.get("name", "最新规律")
+                            
+                            pattern_summary = f"""
+
+【用户总结的交易规律 - {pattern_name}】
 {summary}
 
 请参考以上用户总结的规律，结合当前股票数据进行对比分析。"""
-                        print("✓ 已加入用户总结的规律")
+                            pattern_info = f"✓ 已加入用户总结的规律: {pattern_name} (共{pattern_count}条规律)"
+                            print(pattern_info)
+                            if pattern_count > 1:
+                                print(f"  可用规律列表: {', '.join(pattern_list[:5])}{'...' if len(pattern_list) > 5 else ''}")
+                        else:
+                            print("未找到用户总结的规律")
                 except Exception as e:
                     print(f"获取规律总结失败: {e}")
             
@@ -204,7 +247,7 @@ class StockLLMAnalyzer:
 请提供详细的分析，特别注意参考用户总结的规律（如果提供了的话）。"""
             
             # 3. 智能分析功能
-            print(f"【功能3】正在调用大模型进行智能分析...")
+            print(f"【大模型分析】正在调用 {self.llm_provider} API 进行智能分析...")
             if not self.llm_core:
                 return {"error": "LLM核心模块未初始化"}
             
@@ -216,8 +259,9 @@ class StockLLMAnalyzer:
             
             # 5. 更新提示词库
             if update_prompt and prompt_manager:
-                print(f"【功能2扩展】将本次分析用于优化提示词...")
+                print(f"【提示词优化】将本次分析用于优化提示词库...")
                 update_prompt_from_case(symbol, stock_data, llm_response)
+                print("✓ 提示词库已更新")
             
             # 6. 合并结果
             result = {
@@ -225,7 +269,8 @@ class StockLLMAnalyzer:
                 "llm_prompt": prompt[:500] + "..." if len(prompt) > 500 else prompt,
                 "llm_response": llm_response,
                 "analysis": analysis_result,
-                "analysis_type": "enhanced" if prompt_manager else "basic"
+                "analysis_type": "enhanced" if prompt_manager else "basic",
+                "pattern_info": pattern_info
             }
             
             return result

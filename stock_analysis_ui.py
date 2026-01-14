@@ -920,6 +920,68 @@ def run_llm_analysis():
     if not mode_choice:
         mode_choice = "1"
     
+    # 询问是否使用特定规律
+    use_specific_pattern = False
+    pattern_choice = None
+    
+    if mode_choice in ["1", "2"]:
+        try:
+            # 尝试获取可用的规律
+            from quant_strategy_manager import view_current_strategies
+            strategies = view_current_strategies()
+            pattern_strategies = [s for s in strategies if s.get("type") == "pattern_summary_few_shot"]
+            
+            if pattern_strategies:
+                print(f"\n发现 {len(pattern_strategies)} 条用户总结的交易规律:")
+                for i, strategy in enumerate(pattern_strategies[:10], 1):
+                    print(f"{i}. {strategy.get('name', '未命名')}")
+                    print(f"   描述: {strategy.get('description', '无描述')[:50]}...")
+                
+                print(f"{len(pattern_strategies)+1}. 不使用特定规律（默认使用最新规律）")
+                print(f"{len(pattern_strategies)+2}. 查看所有规律详情")
+                
+                pattern_input = input(f"\n请选择要使用的规律 (1-{len(pattern_strategies)+2}, 默认{len(pattern_strategies)+1}): ").strip()
+                
+                if pattern_input:
+                    try:
+                        choice_idx = int(pattern_input) - 1
+                        if 0 <= choice_idx < len(pattern_strategies):
+                            use_specific_pattern = True
+                            pattern_choice = pattern_strategies[choice_idx]["name"]
+                            print(f"✓ 将使用规律: {pattern_choice}")
+                        elif choice_idx == len(pattern_strategies):
+                            print("✓ 将使用最新规律（默认）")
+                        elif choice_idx == len(pattern_strategies) + 1:
+                            # 查看所有规律详情
+                            print("\n【所有规律详情】")
+                            for i, strategy in enumerate(pattern_strategies, 1):
+                                print(f"\n{i}. {strategy.get('name', '未命名')}")
+                                print(f"   描述: {strategy.get('description', '无描述')}")
+                                content = strategy.get('content', '')
+                                print(f"   内容摘要: {content[:100]}...")
+                            
+                            # 重新询问选择
+                            pattern_input2 = input(f"\n请选择要使用的规律 (1-{len(pattern_strategies)}, 或按回车跳过): ").strip()
+                            if pattern_input2:
+                                choice_idx2 = int(pattern_input2) - 1
+                                if 0 <= choice_idx2 < len(pattern_strategies):
+                                    use_specific_pattern = True
+                                    pattern_choice = pattern_strategies[choice_idx2]["name"]
+                                    print(f"✓ 将使用规律: {pattern_choice}")
+                                else:
+                                    print("✓ 将使用最新规律（默认）")
+                            else:
+                                print("✓ 将使用最新规律（默认）")
+                        else:
+                            print("✓ 将使用最新规律（默认）")
+                    except ValueError:
+                        print("✓ 将使用最新规律（默认）")
+                else:
+                    print("✓ 将使用最新规律（默认）")
+        except Exception as e:
+            print(f"获取规律列表失败: {e}")
+            print("✓ 将使用最新规律（默认）")
+    
     # 获取股票名称并转换为代码
     code = get_stock_name_input()
     if not code:
@@ -981,7 +1043,14 @@ def run_llm_analysis():
                 api_key=api_key,
                 base_url=base_url
             )
-            result = custom_analyzer.analyze_with_llm(code, use_local=False, update_prompt=update_prompt, include_pattern_summary=True)
+            # 传递选择的规律名称
+            result = custom_analyzer.analyze_with_llm(
+                code, 
+                use_local=False, 
+                update_prompt=update_prompt, 
+                include_pattern_summary=True,
+                specific_pattern_name=pattern_choice if use_specific_pattern else None
+            )
             
             if "error" in result:
                 print(f"LLM分析失败: {result['error']}")
