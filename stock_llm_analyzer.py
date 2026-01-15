@@ -467,33 +467,53 @@ def create_llm_analyzer():
     
     # 从环境变量获取配置
     llm_provider = os.environ.get("LLM_PROVIDER", "deepseek").lower()
-    api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    base_url = os.environ.get("LLM_BASE_URL")
     
-    # 检查API密钥
-    if not api_key:
-        print("错误: 未设置API密钥")
-        print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
-        print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
-        sys.exit(1)
-    
+    # 根据提供商获取对应的API密钥
     if llm_provider == "deepseek":
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            print("错误: 未设置DeepSeek API密钥")
+            print("请设置环境变量 DEEPSEEK_API_KEY")
+            print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
+            sys.exit(1)
+        base_url = os.environ.get("LLM_BASE_URL") or "https://api.deepseek.com"
         print(f"使用DeepSeek作为LLM提供商")
         return StockLLMAnalyzer(
             llm_provider="deepseek",
             api_key=api_key,
-            base_url=base_url or "https://api.deepseek.com"
+            base_url=base_url
         )
     elif llm_provider == "openai":
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            print("错误: 未设置OpenAI API密钥")
+            print("请设置环境变量 OPENAI_API_KEY")
+            print("例如: export OPENAI_API_KEY='your-api-key-here'")
+            sys.exit(1)
+        base_url = os.environ.get("LLM_BASE_URL") or "https://api.openai.com/v1"
         print(f"使用OpenAI作为LLM提供商")
         return StockLLMAnalyzer(
             llm_provider="openai",
             api_key=api_key,
-            base_url=base_url or "https://api.openai.com/v1"
+            base_url=base_url
+        )
+    elif llm_provider == "siliconflow":
+        api_key = os.environ.get("SILICONFLOW_API_KEY")
+        if not api_key:
+            print("错误: 未设置硅基流动API密钥")
+            print("请设置环境变量 SILICONFLOW_API_KEY")
+            print("例如: export SILICONFLOW_API_KEY='your-api-key-here'")
+            sys.exit(1)
+        base_url = os.environ.get("LLM_BASE_URL") or "https://api.siliconflow.cn/v1"
+        print(f"使用硅基流动作为LLM提供商")
+        return StockLLMAnalyzer(
+            llm_provider="siliconflow",
+            api_key=api_key,
+            base_url=base_url
         )
     else:
         print(f"错误: 不支持的LLM提供商: {llm_provider}")
-        print("支持的提供商: deepseek, openai")
+        print("支持的提供商: deepseek, openai, siliconflow")
         sys.exit(1)
 
 llm_analyzer = create_llm_analyzer()

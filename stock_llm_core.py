@@ -17,7 +17,7 @@ class StockLLMCore:
         初始化LLM核心
         
         Args:
-            llm_provider: LLM提供商
+            llm_provider: LLM提供商 (deepseek, openai, siliconflow)
             api_key: API密钥
             base_url: API基础URL
         """
@@ -25,10 +25,13 @@ class StockLLMCore:
         self.api_key = api_key
         self.base_url = base_url
         self.deepseek_client = None
+        self.siliconflow_client = None
         
-        # 初始化DeepSeek客户端
+        # 初始化客户端
         if llm_provider == "deepseek":
             self._init_deepseek_client()
+        elif llm_provider == "siliconflow":
+            self._init_siliconflow_client()
     
     def _init_deepseek_client(self):
         """初始化DeepSeek客户端"""
@@ -45,6 +48,24 @@ class StockLLMCore:
         except Exception as e:
             print(f"DeepSeek客户端初始化失败: {e}")
             self.deepseek_client = None
+    
+    def _init_siliconflow_client(self):
+        """初始化硅基流动客户端"""
+        try:
+            from openai import OpenAI
+            # 硅基流动的API基础URL
+            siliconflow_base_url = self.base_url or "https://api.siliconflow.cn/v1"
+            self.siliconflow_client = OpenAI(
+                api_key=self.api_key or os.environ.get("SILICONFLOW_API_KEY"),
+                base_url=siliconflow_base_url
+            )
+            print("硅基流动客户端初始化成功")
+        except ImportError:
+            print("警告: 未安装openai包，硅基流动功能将不可用")
+            self.siliconflow_client = None
+        except Exception as e:
+            print(f"硅基流动客户端初始化失败: {e}")
+            self.siliconflow_client = None
     
     def call_llm(self, prompt: str, use_local: bool = False) -> str:
         """
@@ -65,9 +86,11 @@ class StockLLMCore:
             return self._call_deepseek_api(prompt)
         elif self.llm_provider == "openai":
             return self._call_openai_api(prompt)
+        elif self.llm_provider == "siliconflow":
+            return self._call_siliconflow_api(prompt)
         else:
             print(f"错误: 不支持的LLM提供商: {self.llm_provider}")
-            print("支持的提供商: deepseek, openai")
+            print("支持的提供商: deepseek, openai, siliconflow")
             raise ValueError(f"不支持的LLM提供商: {self.llm_provider}")
     
     def _call_local_llm(self, prompt: str) -> str:
@@ -174,6 +197,53 @@ class StockLLMCore:
             print(f"OpenAI API调用失败: {e}")
             print("错误: API调用失败，请检查网络连接和API密钥")
             raise RuntimeError(f"OpenAI API调用失败: {e}")
+    
+    def _call_siliconflow_api(self, prompt: str) -> str:
+        """
+        调用硅基流动API
+        """
+        if not self.siliconflow_client:
+            print("错误: 硅基流动客户端未初始化")
+            print("请检查API密钥设置")
+            raise RuntimeError("硅基流动客户端未初始化，请检查API密钥")
+        
+        try:
+            print("正在调用硅基流动API...")
+            
+            # 构建消息
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一个专业的股票分析师，擅长分析中国A股市场，特别是涨停板、连板股、炸板等短线交易模式。请根据提供的数据进行专业分析。"
+                },
+                {
+                    "role": "user", 
+                    "content": prompt
+                }
+            ]
+            
+            # 调用API，使用硅基流动的模型（例如Qwen2.5-7B-Instruct）
+            response = self.siliconflow_client.chat.completions.create(
+                model="Qwen/Qwen2.5-7B-Instruct",  # 硅基流动上的模型名称
+                messages=messages,
+                max_tokens=2000,
+                temperature=0.7,
+                stream=False
+            )
+            
+            # 提取回复内容
+            if response and response.choices:
+                content = response.choices[0].message.content
+                print("硅基流动API调用成功")
+                return content
+            else:
+                print("错误: 硅基流动API返回空响应")
+                raise RuntimeError("硅基流动API返回空响应")
+                
+        except Exception as e:
+            print(f"硅基流动API调用失败: {e}")
+            print("错误: API调用失败，请检查网络连接和API密钥")
+            raise RuntimeError(f"硅基流动API调用失败: {e}")
     
     def parse_llm_response(self, response: str) -> Dict[str, str]:
         """
