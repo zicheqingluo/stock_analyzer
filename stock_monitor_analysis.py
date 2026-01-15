@@ -170,13 +170,26 @@ class StockMonitorAnalysis:
                 except:
                     pass
             
-            # 检测是否为一字板
+            # 检测涨停类型
             is_one_word_limit = False
+            is_t_word_limit = False
+            limit_type = "普通涨停"
+            
             if is_limit_up and isinstance(change_analysis, dict):
                 limit_up_time = change_analysis.get('涨停时间', '')
                 if limit_up_time and limit_up_time.startswith('09:25'):
                     is_one_word_limit = True
+                    limit_type = "一字板"
                     print(f"检测到一字板涨停，涨停时间: {limit_up_time}")
+                elif has_open_limit and has_re_limit:
+                    # 有炸板但重新封板，可能是T字板
+                    is_t_word_limit = True
+                    limit_type = "T字板"
+                    print(f"检测到T字板，有炸板但重新封板")
+                elif has_open_limit:
+                    limit_type = "炸板未回封"
+                else:
+                    limit_type = "普通涨停"
             
             # 如果是一字板，即使不在强势股池中也视为强势股
             if is_one_word_limit and not is_in_strong_pool:
@@ -215,9 +228,12 @@ class StockMonitorAnalysis:
                     '是否重新封板': has_re_limit,
                     '是否强势股': is_in_strong_pool,
                     '是否一字板': is_one_word_limit,
+                    '是否T字板': is_t_word_limit,
+                    '涨停类型': limit_type,
                     '炸板次数': max(
                         change_analysis.get('炸板次数', 0) if isinstance(change_analysis, dict) else 0,
-                        炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0
+                        炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0,
+                        len(open_limit_times) if 'open_limit_times' in locals() else 0
                     ),
                     '最终是否涨停': final_is_limit_up,
                     '几连板': streak_days,

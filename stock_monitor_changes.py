@@ -84,18 +84,28 @@ class StockMonitorChanges:
         limit_up_times = []
         limit_up_info = ""
         
-        if not limit_up_df.empty and '代码' in limit_up_df.columns:
-            stock_data = limit_up_df[limit_up_df['代码'] == symbol_clean]
-            if not stock_data.empty:
-                # 获取所有涨停时间
-                if '时间' in stock_data.columns:
-                    limit_up_times = [
-                        self._format_time(t) 
-                        for t in stock_data['时间'].tolist() 
-                        if t is not None
-                    ]
-                if '相关信息' in stock_data.columns:
-                    limit_up_info = stock_data.iloc[0]['相关信息']
+        if not limit_up_df.empty:
+            # 尝试不同的代码列名
+            code_col = None
+            for col in ['代码', 'symbol', '股票代码']:
+                if col in limit_up_df.columns:
+                    code_col = col
+                    break
+            
+            if code_col:
+                # 标准化代码
+                limit_up_df[code_col] = limit_up_df[code_col].astype(str).str.zfill(6)
+                stock_data = limit_up_df[limit_up_df[code_col] == symbol_clean]
+                if not stock_data.empty:
+                    # 获取所有涨停时间
+                    if '时间' in stock_data.columns:
+                        limit_up_times = [
+                            self._format_time(t) 
+                            for t in stock_data['时间'].tolist() 
+                            if t is not None
+                        ]
+                    if '相关信息' in stock_data.columns:
+                        limit_up_info = stock_data.iloc[0]['相关信息']
         
         is_limit_up = len(limit_up_times) > 0
         
@@ -104,17 +114,27 @@ class StockMonitorChanges:
         has_open_limit = False
         open_limit_times = []
         
-        if not open_limit_df.empty and '代码' in open_limit_df.columns:
-            open_limit_stocks = open_limit_df[open_limit_df['代码'] == symbol_clean]
-            if not open_limit_stocks.empty:
-                has_open_limit = True
-                # 修复：格式化时间，确保是字符串
-                if '时间' in open_limit_stocks.columns:
-                    open_limit_times = [
-                        self._format_time(t) 
-                        for t in open_limit_stocks['时间'].tolist() 
-                        if t is not None
-                    ]
+        if not open_limit_df.empty:
+            # 尝试不同的代码列名
+            code_col = None
+            for col in ['代码', 'symbol', '股票代码']:
+                if col in open_limit_df.columns:
+                    code_col = col
+                    break
+            
+            if code_col:
+                # 标准化代码
+                open_limit_df[code_col] = open_limit_df[code_col].astype(str).str.zfill(6)
+                open_limit_stocks = open_limit_df[open_limit_df[code_col] == symbol_clean]
+                if not open_limit_stocks.empty:
+                    has_open_limit = True
+                    # 修复：格式化时间，确保是字符串
+                    if '时间' in open_limit_stocks.columns:
+                        open_limit_times = [
+                            self._format_time(t) 
+                            for t in open_limit_stocks['时间'].tolist() 
+                            if t is not None
+                        ]
         
         # 3. 检查股票是否在涨停板池中（最终是否封板）
         is_in_limit_pool = self._check_if_in_limit_pool(symbol_clean)
@@ -187,38 +207,37 @@ class StockMonitorChanges:
         big_sell_times = []
         big_sell_details = []
         
-        # 只有当股票有基准封板时间时，才检查漏单
-        # 基准封板时间的条件：
-        # 1. 没有炸板的情况：有涨停
-        # 2. 有炸板的情况：炸板后重新封板了
-        if base_limit_time and not big_sell_df.empty and '代码' in big_sell_df.columns:
-            big_sell_stocks = big_sell_df[big_sell_df['代码'] == symbol_clean]
+        # 检查大笔卖出，不依赖基准封板时间
+        if not big_sell_df.empty:
+            # 尝试不同的代码列名
+            code_col = None
+            for col in ['代码', 'symbol', '股票代码']:
+                if col in big_sell_df.columns:
+                    code_col = col
+                    break
             
-            if not big_sell_stocks.empty:
-                # 获取基准封板时间作为时间戳
-                base_limit_datetime = self._parse_time_to_datetime(base_limit_time, self.get_query_date())
+            if code_col:
+                # 标准化代码
+                big_sell_df[code_col] = big_sell_df[code_col].astype(str).str.zfill(6)
+                big_sell_stocks = big_sell_df[big_sell_df[code_col] == symbol_clean]
                 
-                for _, row in big_sell_stocks.iterrows():
-                    # 获取大笔卖出时间
-                    big_sell_time_raw = row['时间'] if '时间' in row else None
-                    big_sell_time = self._format_time(big_sell_time_raw)
+                if not big_sell_stocks.empty:
+                    # 获取查询日期
+                    query_date = self.get_query_date()
                     
-                    if big_sell_time and base_limit_datetime:
-                        # 检查大笔卖出是否在基准封板时间之后
-                        big_sell_datetime = self._parse_time_to_datetime(big_sell_time, self.get_query_date())
+                    for _, row in big_sell_stocks.iterrows():
+                        # 获取大笔卖出时间
+                        big_sell_time_raw = row['时间'] if '时间' in row else None
+                        big_sell_time = self._format_time(big_sell_time_raw)
                         
-                        if big_sell_datetime and big_sell_datetime > base_limit_datetime:
-                            # 获取分时数据验证漏单条件
-                            tick_data = self._get_tick_data(symbol_clean, self.get_query_date())
-                            is_valid_leak = self._check_leak_condition(tick_data, big_sell_time)
-                            
-                            if is_valid_leak:
-                                has_big_sell = True
-                                big_sell_times.append(big_sell_time)
-                                if '相关信息' in row:
-                                    big_sell_details.append(f"{big_sell_time}: {row['相关信息']}")
-                                else:
-                                    big_sell_details.append(f"{big_sell_time}: 疑似漏单")
+                        if big_sell_time:
+                            # 简化处理：只要有大笔卖出记录就认为是漏单
+                            has_big_sell = True
+                            big_sell_times.append(big_sell_time)
+                            if '相关信息' in row:
+                                big_sell_details.append(f"{big_sell_time}: {row['相关信息']}")
+                            else:
+                                big_sell_details.append(f"{big_sell_time}: 大笔卖出")
         
         # 5. 检查其他异动
         other_changes = []

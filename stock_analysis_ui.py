@@ -12,12 +12,49 @@ from typing import Optional, List, Tuple, Dict, Any
 try:
     from stock_ui_formatters import format_analysis_result
 except ImportError:
-    # 如果导入失败，定义简单的替代函数
+    # 如果导入失败，定义改进的替代函数
     def format_analysis_result(analysis: Dict[str, Any]) -> str:
-        """简化版格式化函数"""
+        """改进版格式化函数"""
         if not analysis:
             return "分析结果为空"
-        return f"股票代码: {analysis.get('股票代码', '未知')}\n综合评级: {analysis.get('综合评级', '未知')}"
+        
+        result = []
+        result.append("=" * 60)
+        result.append("【个股综合分析】")
+        result.append("=" * 60)
+        result.append("")
+        
+        # 基本信息
+        result.append("【综合评级】")
+        result.append(f"评级: {analysis.get('综合评级', '未知')}")
+        result.append(f"说明: {analysis.get('评级说明', '未知')}")
+        result.append(f"建议: {analysis.get('投资建议', '未知')}")
+        result.append("")
+        
+        # 涨停信息
+        key_metrics = analysis.get('关键指标', {})
+        result.append("【涨停信息】")
+        result.append(f"是否涨停: {'✓ 是' if key_metrics.get('是否涨停') else '✗ 否'}")
+        result.append(f"涨停类型: {key_metrics.get('涨停类型', '未知')}")
+        result.append(f"几连板: {key_metrics.get('几连板', 0)}")
+        result.append(f"最终是否涨停: {'✓ 是' if key_metrics.get('最终是否涨停') else '✗ 否'}")
+        result.append("")
+        
+        # 异动信息
+        result.append("【异动信息】")
+        result.append(f"是否有炸板: {'✓ 是' if key_metrics.get('是否有炸板') else '✗ 否'}")
+        result.append(f"炸板次数: {key_metrics.get('炸板次数', 0)}")
+        result.append(f"是否漏单: {'✓ 是' if key_metrics.get('是否漏单') else '✗ 否'}")
+        result.append(f"是否重新封板: {'✓ 是' if key_metrics.get('是否重新封板') else '✗ 否'}")
+        result.append(f"是否强势股: {'✓ 是' if key_metrics.get('是否强势股') else '✗ 否'}")
+        result.append("")
+        
+        # 系统信息
+        result.append("【系统信息】")
+        result.append(f"分析时间: {analysis.get('分析时间', '未知')}")
+        result.append(f"查询日期: {analysis.get('查询日期', '未知')}")
+        
+        return "\n".join(result)
 
 
 # ==================== 输入处理模块 ====================
