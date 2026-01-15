@@ -242,6 +242,10 @@ def run_quant_strategy():
 
 def create_quant_strategy_manager():
     """创建量化策略管理器文件"""
-    # 这个函数现在在quant_strategy_manager.py中已经存在
-    # 我们只需要确保文件存在即可
-    pass
+    # 委托给stock_analysis_ui模块中的原始函数
+    try:
+        from stock_analysis_ui import create_quant_strategy_manager as original_create
+        return original_create()
+    except ImportError:
+        print("无法导入stock_analysis_ui模块，无法创建量化策略管理器")
+        return None
