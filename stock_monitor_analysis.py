@@ -232,8 +232,7 @@ class StockMonitorAnalysis:
                     '涨停类型': limit_type,
                     '炸板次数': max(
                         change_analysis.get('炸板次数', 0) if isinstance(change_analysis, dict) else 0,
-                        炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0,
-                        len(open_limit_times) if 'open_limit_times' in locals() else 0
+                        炸板_check.get('炸板次数', 0) if isinstance(炸板_check, dict) else 0
                     ),
                     '最终是否涨停': final_is_limit_up,
                     '几连板': streak_days,
