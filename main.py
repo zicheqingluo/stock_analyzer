@@ -133,15 +133,7 @@ def analyze_stock_directly(symbol, analysis_type="comprehensive"):
             print("=" * 60)
             
             try:
-                # 检查API密钥是否设置
-                api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
-                if not api_key:
-                    print("错误: 未设置API密钥")
-                    print("请设置环境变量 DEEPSEEK_API_KEY 或 OPENAI_API_KEY")
-                    print("例如: export DEEPSEEK_API_KEY='your-api-key-here'")
-                    return
-                
-                result = llm_module.analyze_stock_with_llm(symbol, use_local=False)
+                result = llm_module.analyze_stock_with_llm(symbol, use_local=True)
                 
                 if "error" in result:
                     print(f"LLM分析失败: {result['error']}")
@@ -230,7 +222,6 @@ def main():
                 if choice == 'y':
                     print("进入交互模式...")
                     # 继续执行下面的交互模式代码
-                    # 注意：这里不返回，继续执行下面的交互模式代码
                 else:
                     return
             except (EOFError, KeyboardInterrupt):
@@ -261,82 +252,13 @@ def main():
     pattern_path = os.path.join(current_dir, "stock_pattern_analyzer.py")
     pattern_module = import_module("stock_pattern_analyzer", pattern_path)
     
-    # 检查必要的模块是否导入成功
-    if not stock_data_fetcher:
-        print("警告: 数据获取模块导入失败，某些功能可能受限")
-        # 创建一个简单的替代对象
-        class SimpleFetcher:
-            def get_stock_info(self, symbol):
-                return {"symbol": symbol, "name": "未知"}
-        stock_data_fetcher = SimpleFetcher()
-    
-    if not stock_monitor:
-        print("警告: 监控模块导入失败，某些功能可能受限")
-        # 创建一个简单的替代对象
-        class SimpleMonitor:
-            def comprehensive_analysis(self, symbol):
-                return {
-                    '股票代码': symbol,
-                    '分析时间': '2024-01-01 00:00:00',
-                    '综合评级': '测试',
-                    '评级说明': '监控模块不可用',
-                    '投资建议': '请检查模块加载',
-                    '关键指标': {}
-                }
-        stock_monitor = SimpleMonitor()
-    
     if ui_module:
         # 运行用户界面
-        try:
-            ui_module.main_ui(stock_monitor, stock_data_fetcher)
-        except Exception as e:
-            print(f"运行用户界面时出错: {e}")
-            import traceback
-            traceback.print_exc()
-            print("\n尝试使用备用交互模式...")
-            # 提供简单的备用交互
-            simple_interactive_mode(stock_monitor, stock_data_fetcher)
+        ui_module.main_ui(stock_monitor, stock_data_fetcher)
         # 确保程序退出
         sys.exit(0)
     else:
-        print("用户界面模块导入失败，尝试备用交互模式...")
-        simple_interactive_mode(stock_monitor, stock_data_fetcher)
-
-
-def simple_interactive_mode(stock_monitor, stock_data_fetcher):
-    """
-    简单的交互模式，当UI模块不可用时使用
-    """
-    print("\n=== 备用交互模式 ===")
-    print("1. 分析股票")
-    print("2. 退出")
-    
-    while True:
-        try:
-            choice = input("\n请选择 (1-2): ").strip()
-            if choice == "1":
-                symbol = input("请输入股票代码: ").strip()
-                if symbol:
-                    print(f"\n正在分析 {symbol}...")
-                    try:
-                        if hasattr(stock_monitor, 'comprehensive_analysis'):
-                            analysis = stock_monitor.comprehensive_analysis(symbol)
-                            print(f"股票代码: {analysis.get('股票代码', '未知')}")
-                            print(f"综合评级: {analysis.get('综合评级', '未知')}")
-                            print(f"评级说明: {analysis.get('评级说明', '未知')}")
-                            print(f"投资建议: {analysis.get('投资建议', '未知')}")
-                        else:
-                            print("监控模块不支持综合分析")
-                    except Exception as e:
-                        print(f"分析失败: {e}")
-            elif choice == "2":
-                print("再见！")
-                break
-            else:
-                print("无效选择，请重新输入")
-        except (EOFError, KeyboardInterrupt):
-            print("\n程序退出")
-            break
+        print("用户界面模块导入失败，无法启动系统")
 
 
 if __name__ == "__main__":
